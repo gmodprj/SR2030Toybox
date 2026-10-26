@@ -221,7 +221,7 @@ def test_the_hook_starts_toybox_and_it_writes_a_log(dll, cfg, tmp_path):
     assert run.returncode == 0, run.stderr
     log = (home / "toybox.log").read_text(encoding="utf-8")
     assert "시작" in log and ("끼어들었습니다" in log or "끼어들지 못했습니다" in log), log
-    assert "게임 상태를 읽을 수 없습니다" in log, log     # 게임이 아닌 프로세스다 — 주소를 못 찾고 글쇠 방식으로 남는다
+    assert "게임 상태를 읽을 수 없습니다" in log, log     # 게임이 아닌 프로세스다 — 주소를 못 찾아 단추가 꺼진다
 
 
 def _probe(cfg, tmp_path, mode: str, env: dict[str, str] | None = None) -> str:

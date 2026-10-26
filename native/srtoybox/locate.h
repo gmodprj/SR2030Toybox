@@ -318,7 +318,7 @@ const char *locate_research_shape();
 // 겹치면 false 와 why(UTF-8) — 연구 묶음을 못 찾은 것으로 친다(값 묶음은 그대로 쓴다).
 bool locate_research_fits(const ResearchLayout &research, const ValueLayout &values, char *why, size_t why_size);
 
-// 옛 찾기(전환 기간에만): 찾으면 nullptr 과 out 의 handler · context · options(다른 필드는 건드리지 않는다).
+// 옛 찾기(내보내기로만 남았다 — 검증 도구와 테스트의 대조가 부른다. DLL 의 기능은 쓰지 않는다): 찾으면 nullptr 과 out 의 handler · context · options(다른 필드는 건드리지 않는다).
 // 못 찾으면 까닭(UTF-8, 정적 문자열)이고 out 은 그대로다.
 const char *locate_legacy(const uint8_t *image, size_t size, GameAddresses *out);
 

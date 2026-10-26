@@ -213,10 +213,10 @@ def cmd_locate(cfg, _args) -> int:
     else:
         for name in toybox.RESEARCH_FIELDS:
             print(f"  {found.research[name]:#010x}  {toybox.RESEARCH_NAMES[name]}")
-    print("옛 찾기 — 아직 내장 치트로 도는 기능이 쓰는 주소(치트 문자열이 닻이다. 전환 기간에만):")
+    print("옛 찾기 — 검증 도구만 보는 주소(치트 문자열이 닻이다. ToyBox 의 기능은 쓰지 않는다):")
     if found.legacy is None:
         print(f"  찾지 못했습니다: {found.legacy_why}")
-        print("  내장 치트로 도는 기능은 글쇠 방식으로 동작합니다(docs/10).")
+        print("  gamedrive.py peek 이 치트 허용 비트를 읽지 못합니다. ToyBox 의 기능에는 영향이 없습니다(docs/11).")
     else:
         for name in toybox.LEGACY_FIELDS:
             print(f"  {found.legacy[name]:#010x}  {toybox.ADDRESS_NAMES[name]}")

@@ -625,7 +625,7 @@ def test_research_agrees_with_what_the_cheat_code_says(lib, game_dir):
 
 
 def test_legacy_finds_the_handler_from_the_cheat_anchor(lib, sigs):
-    """옛 찾기(전환 기간): 아직 내장 치트로 도는 기능이 쓰는 셋만 치트 문자열을 닻으로 찾는다."""
+    """옛 찾기(검증 도구 · 대조용): 명령 처리 함수와 그 둘레의 셋만 치트 문자열을 닻으로 찾는다."""
     assert toybox.legacy_of(lib, toybox_fake_exe.build(sigs)) == (toybox_fake_exe.LEGACY, "")
 
 
