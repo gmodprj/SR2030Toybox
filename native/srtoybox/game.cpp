@@ -1097,6 +1097,17 @@ int swap_qword(uint64_t cell, uint64_t was, uint64_t now)
     return static_cast<uint64_t>(seen) == was ? 0 : 1;
 }
 
+int swap_dword(uint64_t cell, uint32_t was, uint32_t now)
+{
+    LONG seen = 0;
+    __try {
+        seen = InterlockedCompareExchange(reinterpret_cast<volatile LONG *>(cell), static_cast<LONG>(now), static_cast<LONG>(was));
+    } __except (EXCEPTION_EXECUTE_HANDLER) {
+        return -1;
+    }
+    return static_cast<uint32_t>(seen) == was ? 0 : 1;
+}
+
 Wrote write_research(const uint8_t *base, const GameAddresses &at, const ResearchLayout &research, Recompute recompute, Research action,
                      const ResearchWhat &what, ResearchDone *done)
 {
@@ -2348,6 +2359,107 @@ Wrote game_annex(int number, unsigned long *code, int *hexes)
         return Wrote::Done;                    // 그 나라의 땅이 없다(*hexes 는 0)
     return guarded_annex(annex, map, cells, side_a, side_b, width, list.data(), static_cast<int>(list.size()), me, hexes, code)
         ? Wrote::Done : Wrote::Crashed;
+}
+
+void (*g_loyalty_hook)() = nullptr;
+
+void game_set_loyalty_hook_for_test(void (*hook)())
+{
+    std::lock_guard<std::mutex> lock(g_lock);
+    g_loyalty_hook = hook;
+}
+
+std::string game_loyalty_off()
+{
+    const std::string parent = game_mult_off(MULT_PART_PARENT);
+    if (!parent.empty())
+        return parent;
+    std::lock_guard<std::mutex> lock(g_lock);
+    return off_text(g_map != 0, g_act_why[13]);
+}
+
+Wrote game_loyalty(int *hexes, int *target)
+{
+    *hexes = 0;
+    *target = 0;
+    if (!game_loyalty_off().empty())
+        return Wrote::Off;
+    const uint8_t *base = nullptr;
+    GameAddresses at = {};
+    uint32_t where = 0, parent = 0;
+    void (*hook)() = nullptr;
+    {
+        std::lock_guard<std::mutex> lock(g_lock);
+        base = g_base;
+        at = g_at;
+        where = g_map;
+        parent = g_mult.parent;
+        hook = g_loyalty_hook;
+    }
+    uint64_t mine = 0;
+    const GameState s = read_player(base, at, &mine);
+    if (!s.in_game || s.multiplayer)
+        return Wrote::NotInGame;
+    const int me = s.index;
+    uint64_t map = 0;
+    uint8_t head[MAP_COUNT + 4] = {};
+    if (!peek_at(base, where, &map) || map == 0 || !peek(reinterpret_cast<const void *>(map), head, sizeof(head)))
+        return Wrote::BadValue;
+    const uint64_t cells = field<uint64_t>(head, MAP_HEXES);
+    const int32_t width = field<int32_t>(head, MAP_WIDTH), count = field<int32_t>(head, MAP_COUNT);
+    if (cells == 0 || width < 1 || width > 0xFFFF || count < width || count % width != 0 || count / width > 0xFFFF)
+        return Wrote::BadValue;
+    std::vector<uint8_t> raw(static_cast<size_t>(count) * HEX_SIZE);
+    if (!peek(reinterpret_cast<const void *>(cells), raw.data(), raw.size()))
+        return Wrote::BadValue;
+    std::vector<int8_t> side(MAX_REGIONS, -1);           // 충성 대상마다: -1 아직 모른다 · 0 남 · 1 내 편
+    const auto loyal_to_me = [&](int l) {
+        if (l == me)
+            return true;
+        if (side[static_cast<size_t>(l)] < 0) {
+            uint64_t slot = 0;
+            uint16_t up = 0;
+            side[static_cast<size_t>(l)] = peek_at(base, at.region_table + 8ull * static_cast<uint64_t>(l), &slot) && slot != 0
+                && peek_in(slot, parent, &up) && up == me ? 1 : 0;
+        }
+        return side[static_cast<size_t>(l)] == 1;
+    };
+    std::vector<int> mine_count(MAX_REGIONS, 0), list;
+    for (int i = 0; i < count; i++) {
+        const uint8_t *record = raw.data() + static_cast<size_t>(i) * HEX_SIZE;
+        const uint16_t owner = field<uint16_t>(record, 0), loyal = field<uint16_t>(record, 2);
+        if (owner >= MAX_REGIONS || loyal >= MAX_REGIONS)
+            return Wrote::BadValue;                       // 칸 레코드의 꼴이 다르다 — 한 칸도 쓰지 않는다
+        if (owner != me || loyal == 0)
+            continue;
+        if (loyal_to_me(loyal))
+            mine_count[loyal]++;
+        else
+            list.push_back(i);
+    }
+    int best = 0;
+    for (int l = 1; l < MAX_REGIONS; l++)
+        if (mine_count[static_cast<size_t>(l)] > mine_count[static_cast<size_t>(best)])
+            best = l;
+    if (mine_count[static_cast<size_t>(best)] == 0)
+        return Wrote::BadValue;                           // 내 편 칸이 없다 — 판정이 틀렸을 수 있으니 본토를 다시 쓰지 않는다
+    *target = best;
+    if (list.empty())
+        return Wrote::Done;
+    if (hook != nullptr)
+        hook();
+    if (!game_writes())
+        return Wrote::Off;
+    for (const int i : list) {
+        const uint32_t was = field<uint32_t>(raw.data() + static_cast<size_t>(i) * HEX_SIZE, 0);
+        const uint32_t now = (was & 0xFFFFu) | static_cast<uint32_t>(best) << 16;
+        const int r = swap_dword(cells + static_cast<uint64_t>(i) * HEX_SIZE, was, now);
+        if (r < 0)
+            return write_failed("칸의 충성 대상", static_cast<int>(list.size()), *hexes);
+        if (r == 0)
+            ++*hexes;
+    }
+    return Wrote::Done;
 }
 
 Wrote game_treaty(int number, unsigned long *code)

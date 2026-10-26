@@ -451,6 +451,23 @@ EXPORT void srtoybox_test_acts(const ActLayout *layout, void *colonize, void *fi
     game_set_acts_for_test(layout, colonize, fight, become, elect, news, treaty, annex, spawn, deploy);
 }
 
+// 점령지 충성(game_loyalty): Wrote 의 정수. 바꾼 칸의 수와 쓴 충성 대상의 인덱스.
+EXPORT int srtoybox_loyalty(int *hexes, int *target)
+{
+    return static_cast<int>(game_loyalty(hexes, target));
+}
+
+EXPORT int srtoybox_loyalty_off(char *out, int size)
+{
+    return put(game_loyalty_off(), out, size);
+}
+
+// 테스트: 점령지 충성의 스냅숏 뒤 · 쓰기 전에 부를 함수.
+EXPORT void srtoybox_test_loyalty_hook(void (*hook)())
+{
+    game_set_loyalty_hook_for_test(hook);
+}
+
 // 테스트: 게임의 지도에서 고른 지역의 번호(없으면 0).
 EXPORT int srtoybox_map_pick(void)
 {

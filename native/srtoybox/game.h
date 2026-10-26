@@ -336,6 +336,17 @@ Wrote game_write_reserve(float value);
 void game_set_mult_for_test(const MultLayout *layout);
 // cell 의 qword 가 was 이면 now 로 바꾼다(CAS). 0 바꿨다 · 1 값이 was 가 아니었다(그대로 둔다) · -1 쓸 수 없다. write_research 가 지역 코드 칸에 쓴다.
 int swap_qword(uint64_t cell, uint64_t was, uint64_t now);
+// cell 의 dword 가 was 이면 now 로 바꾼다(CAS). 돌려주는 값은 swap_qword 와 같다. game_loyalty 가 칸 레코드의 +0 (주인 | 충성 대상)에 쓴다.
+int swap_dword(uint64_t cell, uint32_t was, uint32_t now);
+// 점령지 충성(docs/superpowers/specs/2026-10-26-toybox-loyalty-design.md). 쓰는 곳은 주인이 플레이어인 칸 레코드의 +2(충성 대상, word)뿐이다.
+// 지도를 한 번에 읽어(스냅숏) 주인이 플레이어이고 충성 대상 L 이 "내 편"이 아닌 칸을 고른다 — 내 편 = L 이 플레이어 인덱스이거나 L 의 지역 객체의
+// 위 나라 칸(game_mult_off(MULT_PART_PARENT))이 플레이어 인덱스. L = 0 인 칸은 건드리지 않는다. 쓰는 값은 플레이어의 "내 편" 칸에 가장 많이 든 L
+// (같으면 작은 인덱스) — *target. 내 편 칸이 하나도 없으면 BadValue(한 칸도 쓰지 않는다). 지도의 꼴(칸 수가 너비의 배수 · 세로 65535 이하 ·
+// 주인과 충성 대상이 모두 지역 표 안)이 말이 안 되면 BadValue. 칸마다 dword CAS 로 써서 그사이 게임이 바꾼 칸은 건너뛴다. *hexes 에 바꾼 칸의 수.
+// 게임의 함수는 부르지 않는다.
+Wrote game_loyalty(int *hexes, int *target);
+std::string game_loyalty_off();             // 점령지 충성을 쓸 수 없는 까닭(창에 그대로 보인다). 쓸 수 있으면 빈 글
+void game_set_loyalty_hook_for_test(void (*hook)());   // 테스트: 스냅숏 뒤 · 쓰기 전에 부를 함수(없으면 nullptr)
 
 // 테스트: 이 프로세스의 "게임"을 가짜 메모리로 바꾼다. handler 는 명령 처리 함수 자리에 둘 함수(없으면 nullptr).
 // 값의 자리는 비워 두고 값 쓰기의 실패 표시도 지운다 — 자리는 game_set_values_for_test 로 따로 준다.
