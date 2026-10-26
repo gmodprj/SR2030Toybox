@@ -7,6 +7,7 @@
 #include <memory>
 #include <string>
 
+#include "game.h"
 #include "locate.h"
 #include "research.h"
 #include "values.h"
@@ -191,5 +192,10 @@ int social_count(const Social &social);           // 100 이 아닌 배율(on �
 // 예비 인원의 최소 유지(docs/superpowers/specs/2026-10-22-toybox-reserve-design.md). KEEP_EVERY_MS 마다, 켜져 있으면 예비가 value 보다 적을 때 value 로 쓴다. 저장되는 설정이다.
 const long long RESERVE_KEEP_MAX = 100000000;    // 유지 값의 끝(명)
 void keeper_set_reserve_keep(bool on, long long value);
+
+// 지지율 · 여론의 최소 유지(docs/superpowers/specs/2026-10-26-toybox-loyalty-design.md). KEEP_EVERY_MS 마다, 켜진 칸이 percent / 100 보다 낮으면
+// 그 값으로 쓴다(game_write_floor_value). 저장되는 설정이다.
+const int FLOOR_PERCENT_MAX = 100;
+void keeper_set_floor_keep(Floor which, bool on, int percent);
 
 void keeper_reset_for_test();

@@ -39,6 +39,10 @@ struct Settings {
     bool keep_reserve = false;
     long long keep_reserve_value = 0;
     long long reserve_amount = 1000000;
+    // 지지율 · 여론의 최소 유지(docs/superpowers/specs/2026-10-26-toybox-loyalty-design.md): "keep.civapproval" · "keep.milapproval" · "keep.opinion"(0 / 1)과
+    // 그 ".value"(퍼센트 0 … 100). 차례는 Floor(game.h) 와 같다
+    bool keep_floor[3] = {};
+    int keep_floor_value[3] = {};
     bool social_on = false;
     int social_up[SOCIAL_COUNT] = {100, 100, 100, 100, 100, 100, 100, 100};
     int social_down[SOCIAL_COUNT] = {100, 100, 100, 100, 100, 100, 100, 100};

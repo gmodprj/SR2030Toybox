@@ -77,6 +77,10 @@ uint32_t g_social_day;
 float g_social_seen[SOCIAL_COUNT];  // 지난 틱의 등급(ToyBox 가 쓴 뒤의 값) — 자정의 변화는 이것과의 차다
 bool g_social_told;                 // 이 설정으로 날마다의 일을 한 것을 로그에 적었다
 bool g_reserve_keep;                // 예비 인원의 최소 유지
+bool g_floor_on[FLOOR_COUNT];       // 지지율 · 여론의 최소 유지(Floor 순서)
+int g_floor_pct[FLOOR_COUNT];
+bool g_floor_told[FLOOR_COUNT];
+unsigned long long g_floor_at;
 long long g_reserve_floor;
 unsigned long long g_reserve_at;
 bool g_reserve_told;
@@ -895,6 +899,30 @@ bool grade_sane(float v)
     return std::isfinite(v) && v >= 0.0f && v < SOCIAL_GRADE_SANE;
 }
 
+const char *const FLOOR_NAMES[FLOOR_COUNT] = {"국민 지지", "군부 지지", "여론"};
+
+// 지지율 · 여론의 최소 유지. g_lock 을 쥔 채로 부른다.
+void floor_tick(unsigned long long now_ms)
+{
+    if (!(g_floor_on[0] || g_floor_on[1] || g_floor_on[2]) || runner_calling() || runner_faulted() || now_ms - g_floor_at < KEEP_EVERY_MS
+        || !game_writes())
+        return;
+    g_floor_at = now_ms;
+    for (int i = 0; i < FLOOR_COUNT; i++) {
+        if (!g_floor_on[i])
+            continue;
+        const Floor which = static_cast<Floor>(i);
+        const float floor = static_cast<float>(g_floor_pct[i]) / 100.0f;
+        float now = 0;
+        if (!game_floor_value(which, &now) || !std::isfinite(now) || now < 0.0f || now > 1.0f || now >= floor)
+            continue;
+        if (game_write_floor_value(which, floor) == Wrote::Done && !g_floor_told[i]) {
+            g_floor_told[i] = true;
+            log_line("유지: %s %.1f %% -> %d %%", FLOOR_NAMES[i], now * 100.0f, g_floor_pct[i]);
+        }
+    }
+}
+
 // 예비 인원의 최소 유지. g_lock 을 쥔 채로 부른다.
 void reserve_tick(unsigned long long now_ms)
 {
@@ -1073,6 +1101,18 @@ int social_count(const Social &s)
     return count;
 }
 
+void keeper_set_floor_keep(Floor which, bool on, int percent)
+{
+    const int i = static_cast<int>(which);
+    if (i < 0 || i >= FLOOR_COUNT)
+        return;
+    std::lock_guard<std::mutex> lock(g_lock);
+    g_floor_on[i] = on;
+    g_floor_pct[i] = std::min(FLOOR_PERCENT_MAX, std::max(0, percent));
+    g_floor_told[i] = false;
+    g_floor_at = 0;
+}
+
 void keeper_set_reserve_keep(bool on, long long value)
 {
     std::lock_guard<std::mutex> lock(g_lock);
@@ -1159,6 +1199,7 @@ void keeper_tick(unsigned long long now_ms)
         mult_tick(now_ms);                     // 단추의 요청과 최소 유지 뒤에 — 방금 쓴 국고에 그날의 세금 · 국방비를 얹는다
         social_tick(now_ms);
         reserve_tick(now_ms);
+        floor_tick(now_ms);
     }
     if (write && job.act) {
         run_act(job.what);
@@ -1251,6 +1292,9 @@ void keeper_reset_for_test()
     forget_cells();
     g_social = Social();
     g_reserve_keep = g_reserve_told = false;
+    for (int i = 0; i < FLOOR_COUNT; i++)
+        g_floor_on[i] = g_floor_told[i] = false, g_floor_pct[i] = 0;
+    g_floor_at = 0;
     g_reserve_floor = 0;
     g_reserve_at = 0;
     g_social_due = g_social_have = g_social_told = g_social_waiting = false;

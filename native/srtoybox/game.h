@@ -347,6 +347,15 @@ int swap_dword(uint64_t cell, uint32_t was, uint32_t now);
 Wrote game_loyalty(int *hexes, int *target, int *number);
 std::string game_loyalty_off();             // 점령지 충성을 쓸 수 없는 까닭(창에 그대로 보인다). 쓸 수 있으면 빈 글
 void game_set_loyalty_hook_for_test(void (*hook)());   // 테스트: 스냅숏 뒤 · 쓰기 전에 부를 함수(없으면 nullptr)
+// 지지율 · 여론의 최소 유지(같은 설계서). 쓰는 곳은 플레이어의 국민 지지율(MORE_APPROVAL 의 칸) · 군부 지지율(MULT_PART_MILAPPROVAL) ·
+// 세계 시장 여론(MORE_OPINION 의 둘째 칸) — 셋 다 float 0 … 1.
+enum class Floor { Civ = 0, Mil = 1, Opinion = 2 };
+const int FLOOR_COUNT = 3;
+std::string game_floor_off(Floor which);    // 그 칸을 쓸 수 없는 까닭. 쓸 수 있으면 빈 글
+// 플레이어의 그 칸을 *out 에. 진행 중이 아니거나 읽을 수 없으면 거짓(값이 말이 되는지는 부른 쪽이 본다).
+bool game_floor_value(Floor which, float *out);
+// 그 칸에 value 를 쓴다. value 와 지금 값이 모두 0 … 1 의 유한한 수일 때만(아니면 BadValue). 쓰기가 실패하면 값 쓰기 전체를 끈다(Failed).
+Wrote game_write_floor_value(Floor which, float value);
 
 // 테스트: 이 프로세스의 "게임"을 가짜 메모리로 바꾼다. handler 는 명령 처리 함수 자리에 둘 함수(없으면 nullptr).
 // 값의 자리는 비워 두고 값 쓰기의 실패 표시도 지운다 — 자리는 game_set_values_for_test 로 따로 준다.

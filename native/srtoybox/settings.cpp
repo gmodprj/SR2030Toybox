@@ -32,6 +32,19 @@ bool parse_int(const std::string &s, long long &out)
 }
 
 // "keep.stock.<칸>" 과 "keep.stock.<칸>.value" 의 줄. rest 는 "keep.stock." 뒤의 글이다. 칸이나 값이 틀리면 버린다.
+// 지지율 · 여론의 최소 유지의 줄 이름(Floor 의 차례). "keep.<이름>" · "keep.<이름>.value" 이면 그 차례, 아니면 -1.
+const char *const FLOOR_KEYS[3] = {"civapproval", "milapproval", "opinion"};
+
+int floor_index(const std::string &key)
+{
+    for (int i = 0; i < 3; i++) {
+        const std::string name = std::string("keep.") + FLOOR_KEYS[i];
+        if (key == name || key == name + ".value")
+            return i;
+    }
+    return -1;
+}
+
 void parse_keep_stock(const std::string &rest, long long n, Settings &s)
 {
     const size_t dot = rest.find('.');
@@ -206,6 +219,13 @@ Settings parse_settings(const std::string &ini)
         } else if (key == "keep.reserve.value") {
             if (n >= 0 && n <= RESERVE_LIMIT)
                 s.keep_reserve_value = n;
+        } else if (floor_index(key) >= 0) {
+            const int i = floor_index(key);
+            const bool value_line = key.size() > 6 && key.compare(key.size() - 6, 6, ".value") == 0;
+            if (value_line && n >= 0 && n <= 100)
+                s.keep_floor_value[i] = static_cast<int>(n);
+            else if (!value_line && (n == 0 || n == 1))
+                s.keep_floor[i] = n == 1;
         } else if (key == "reserve.add") {
             if (n >= 1 && n <= RESERVE_LIMIT)
                 s.reserve_amount = n;
@@ -257,6 +277,9 @@ std::string format_settings(const Settings &s)
     }
     out += "keep.reserve=" + std::to_string(s.keep_reserve ? 1 : 0) + "\nkeep.reserve.value=" + std::to_string(s.keep_reserve_value)
         + "\nreserve.add=" + std::to_string(s.reserve_amount) + "\n";
+    for (int i = 0; i < 3; i++)
+        out += std::string("keep.") + FLOOR_KEYS[i] + "=" + std::to_string(s.keep_floor[i] ? 1 : 0) + "\nkeep." + FLOOR_KEYS[i] + ".value="
+            + std::to_string(s.keep_floor_value[i]) + "\n";
     for (int i = 0; i < FEATURE_COUNT; i++) {
         if (!FEATURES[i].has_value)
             continue;

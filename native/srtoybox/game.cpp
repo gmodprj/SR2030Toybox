@@ -3016,6 +3016,70 @@ Wrote game_write_reserve(float value)
     return Wrote::Done;
 }
 
+const char *const FLOOR_CELLS[FLOOR_COUNT] = {"국민 지지율 칸", "군부 지지율 칸", "세계 시장 여론 칸"};
+
+std::string game_floor_off(Floor which)
+{
+    if (which == Floor::Civ)
+        return game_more_off(MORE_APPROVAL);
+    if (which == Floor::Opinion)
+        return game_more_off(MORE_OPINION);
+    const std::string mult = game_mult_off(MULT_PART_MILAPPROVAL);
+    if (!mult.empty())
+        return mult;
+    std::lock_guard<std::mutex> lock(g_lock);
+    return off_text(true, "");
+}
+
+uint64_t floor_cell(Floor which)
+{
+    if (!game_floor_off(which).empty())
+        return 0;
+    const uint8_t *base = nullptr;
+    GameAddresses at = {};
+    MoreLayout more = {};
+    MultLayout mult = {};
+    {
+        std::lock_guard<std::mutex> lock(g_lock);
+        base = g_base;
+        at = g_at;
+        more = g_more;
+        mult = g_mult;
+    }
+    uint64_t player = 0;
+    const GameState s = read_player(base, at, &player);
+    if (!s.in_game || s.multiplayer || player == 0)
+        return 0;
+    const uint32_t off = which == Floor::Civ ? more.approval : which == Floor::Mil ? mult.mil_approval : more.opinion[1];
+    return off == 0 ? 0 : player + off;
+}
+
+bool floor_sane(float v)
+{
+    return std::isfinite(v) && v >= 0.0f && v <= 1.0f;
+}
+
+bool game_floor_value(Floor which, float *out)
+{
+    const uint64_t where = floor_cell(which);
+    return where != 0 && peek(reinterpret_cast<const uint8_t *>(where), out, sizeof(*out));
+}
+
+Wrote game_write_floor_value(Floor which, float value)
+{
+    if (!game_floor_off(which).empty() || !game_writes())
+        return Wrote::Off;
+    const uint64_t where = floor_cell(which);
+    if (where == 0)
+        return Wrote::NotInGame;
+    float now = 0;
+    if (!floor_sane(value) || !peek(reinterpret_cast<const uint8_t *>(where), &now, sizeof(now)) || !floor_sane(now))
+        return Wrote::BadValue;
+    if (!poke(where, &value, sizeof(value)))
+        return write_failed(FLOOR_CELLS[static_cast<int>(which)], 1, 0);
+    return Wrote::Done;
+}
+
 Wrote game_research_push(float days, int *nodes)
 {
     *nodes = 0;

@@ -889,6 +889,18 @@ EXPORT int srtoybox_keeper_mult(const char *spec)
 }
 
 // 테스트: 예비 인원의 최소 유지를 켜고 끈다.
+// 지지율 · 여론의 최소 유지: which 는 Floor(0 국민 지지율 · 1 군부 지지율 · 2 세계 시장 여론), percent 는 0 … 100.
+EXPORT void srtoybox_keeper_floor(int which, int on, int percent)
+{
+    if (which >= 0 && which < FLOOR_COUNT)
+        keeper_set_floor_keep(static_cast<Floor>(which), on != 0, percent);
+}
+
+EXPORT int srtoybox_floor_off(int which, char *out, int size)
+{
+    return put(which >= 0 && which < FLOOR_COUNT ? game_floor_off(static_cast<Floor>(which)) : std::string("없는 칸입니다"), out, size);
+}
+
 EXPORT void srtoybox_keeper_reserve(int on, double value)
 {
     keeper_set_reserve_keep(on != 0, static_cast<long long>(value));
