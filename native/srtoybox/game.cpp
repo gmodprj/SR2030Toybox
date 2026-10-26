@@ -1426,9 +1426,9 @@ void game_init_from(const uint8_t *base, size_t size)
     if (state) {
         if (multiplying == (1 << MULT_WANTED) - 1) {
             log_line("배율을 씁니다 (곱 보정 표 +0x%X · 날의 칸 +0x%X · 연간 세수 +0x%X · 군 인건비 +0x%X × +0x%X · 군 유지비 +0x%X × +0x%X · "
-                     "부대 생산비 +0x%X · 연구의 하루치 +0x%X · 사회 지출 +0x%X × +0x%X · 품질 등급 +0x%X · 예비 인원 +0x%X)",
+                     "부대 생산비 +0x%X · 연구의 하루치 +0x%X · 사회 지출 +0x%X × +0x%X · 품질 등급 +0x%X · 예비 인원 +0x%X · 군부 지지율 +0x%X · 위 나라 +0x%X)",
                      mult.mul_table, mult.day, mult.tax_total, mult.army_pay_level, mult.army_pay, mult.army_upkeep_level, mult.army_upkeep,
-                     mult.unit_cost, mult.research_step, mult.social_level, mult.social_cost, mult.social_grade, mult.reserve);
+                     mult.unit_cost, mult.research_step, mult.social_level, mult.social_cost, mult.social_grade, mult.reserve, mult.mil_approval, mult.parent);
         } else {
             int missing = 0, first = -1;           // 한 줄로: 처음 못 찾은 것과 그 밖의 수
             for (int w = 0; w < MULT_WANTED; w++)
@@ -2691,6 +2691,10 @@ std::string game_mult_off(int part)
         why = missing(1, 1) != nullptr ? missing(1, 1) : missing(11, 11);
     else if (part == MULT_PART_RESERVE)
         why = missing(12, 12);
+    else if (part == MULT_PART_MILAPPROVAL)
+        why = missing(13, 13);
+    else if (part == MULT_PART_PARENT)
+        why = missing(14, 14);
     else
         return "없는 묶음입니다";
     if (why != nullptr)

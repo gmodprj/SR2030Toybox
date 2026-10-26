@@ -230,9 +230,12 @@ struct MultLayout {
     uint32_t social_grade;     // float × SOCIAL_COUNT. 그 항목들의 품질 등급(0 … 2 — 게임의 사회 지출 화면의 "품질 등급 NN.N %" = × 100).
                                // ToyBox 가 플레이어의 것에 쓴다(docs/superpowers/specs/2026-10-21-toybox-social-grades-design.md)
     uint32_t reserve;          // float. 예비 인원(지휘 패널의 "예비 인원"). 쌓이는 칸 — 게임이 더하고 뺀다. ToyBox 가 플레이어의 것에 쓴다(docs/superpowers/specs/2026-10-22-toybox-reserve-design.md)
+    uint32_t mil_approval;     // float. 군부 지지율(0 … 1. CVP 의 milapproval). 날마다 다시 셈해진다. ToyBox 가 플레이어의 것에 최소 유지로 쓴다
+    uint32_t parent;           // word. 하위 지역(서독 등)이 속한 위 나라의 인덱스(0 이면 없다). 읽기만 한다 — 점령지 충성의 "내 편" 판정
+                               // (docs/superpowers/specs/2026-10-26-toybox-loyalty-design.md)
 };
 
-const int MULT_WANTED = 13;                 // 찾을 것의 수(MultLayout 의 필드 순서와 같다)
+const int MULT_WANTED = 15;                 // 찾을 것의 수(MultLayout 의 필드 순서와 같다)
 const int MULT_TABLE = 1;                   // 찾은 것의 비트: 곱 보정 표 — 물자의 생산 · 소비의 배율
 const int MULT_DAY = 2, MULT_TAX = 4, MULT_ARMY = 8 | 16 | 32 | 64 | 128, MULT_STEP_BIT = 256;
 const uint32_t MUL_STEP = 0x320;            // 곱 보정 표에서 지역 하나의 줄(표를 찾는 서명 둘에 박혀 있다)

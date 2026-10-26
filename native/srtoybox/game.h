@@ -325,6 +325,8 @@ Grades game_social_grades();
 Wrote game_write_social_grade(int item, float value);
 // 예비 인원(docs/superpowers/specs/2026-10-22-toybox-reserve-design.md). 쓰는 곳은 플레이어 지역 객체의 예비 인원 칸 하나뿐이다. 찾아야 하는 것: 예비 칸(game_mult_off(MULT_PART_RESERVE)).
 const int MULT_PART_RESERVE = 5;
+// 충성 · 지지(docs/superpowers/specs/2026-10-26-toybox-loyalty-design.md): 군부 지지율 칸 · 위 나라 칸(읽기만)
+const int MULT_PART_MILAPPROVAL = 6, MULT_PART_PARENT = 7;
 const float RESERVE_MAX = 100000000.0f;     // 쓰는 값의 끝(1억 명). 읽은 값도 0 이상 이 아래여야 말이 된다
 // 플레이어의 예비 인원을 *out 에. 진행 중이 아니거나 읽을 수 없으면 거짓(값이 말이 되는지는 부른 쪽이 본다).
 bool game_reserve(float *out);
