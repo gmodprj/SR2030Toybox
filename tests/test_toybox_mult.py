@@ -13,14 +13,14 @@ from toybox_fake_game import Lab, FakeGame, TECH
 MUL_TABLE, MUL_STEP, DAY = 0x4000, 0x320, 0x70
 CELLS = dict(tax_total=0x180, army_pay_level=0x188, army_upkeep_level=0x18C, army_pay=0x190, army_upkeep=0x194, unit_cost=0x198,
              research_step=0x19C, social_cost=0x1A0, social_level=0x1C0, social_grade=0x1E0, reserve=0x204, mil_approval=0x208,
-             parent=0x20C)
+             group=0x20C)
 GERMANY, POLAND = 176, 141
 ACTIVE, GONE = 0x40000000, 0x80000000
-PART_CELLS, PART_MONEY, PART_SPEED, PART_SOCIAL, PART_GRADE, PART_RESERVE, PART_MILAPPROVAL, PART_PARENT = 0, 1, 2, 3, 4, 5, 6, 7
+PART_CELLS, PART_MONEY, PART_SPEED, PART_SOCIAL, PART_GRADE, PART_RESERVE, PART_MILAPPROVAL, PART_GROUP = 0, 1, 2, 3, 4, 5, 6, 7
 RESERVE, ADD = -8, 0                    # keeper.h 의 Request.slot · values.h 의 Change
 BUILD_MULT = {"mul_table": 0x1CEE6C8, "day": 0x18294D0, "tax_total": 0xA6B8, "army_pay_level": 0xA6DC, "army_upkeep_level": 0xA6E0,
               "army_pay": 0x14CE0, "army_upkeep": 0x14CE4, "unit_cost": 0x14BDC, "research_step": 0x15E5C, "social_cost": 0x14C04,
-              "social_level": 0xA680, "social_grade": 0x15DB0, "reserve": 0x14B64, "mil_approval": 0x14B08, "parent": 0x8C}    # build 21347933
+              "social_level": 0xA680, "social_grade": 0x15DB0, "reserve": 0x14B64, "mil_approval": 0x14B08, "group": 0x8A}    # build 21347933
 
 
 @pytest.fixture(scope="module")
@@ -451,10 +451,10 @@ def test_each_part_says_why_it_is_off(lib, game):
     assert off(PART_CELLS) == "" and off(PART_MONEY) != "" and off(PART_SPEED) != ""
     lib.srtoybox_test_mult(ctypes.byref(toybox.MultLayout(day=DAY, **CELLS)))
     assert off(PART_CELLS) != "" and off(PART_MONEY) == "" and off(PART_SPEED) == ""
-    lib.srtoybox_test_mult(ctypes.byref(toybox.MultLayout(**{**dict(mul_table=MUL_TABLE, day=DAY, **CELLS), "mil_approval": 0, "parent": 0})))
-    assert off(PART_MILAPPROVAL) != "" and off(PART_PARENT) != "" and off(PART_RESERVE) == ""   # 둘은 따로 꺼진다
+    lib.srtoybox_test_mult(ctypes.byref(toybox.MultLayout(**{**dict(mul_table=MUL_TABLE, day=DAY, **CELLS), "mil_approval": 0, "group": 0})))
+    assert off(PART_MILAPPROVAL) != "" and off(PART_GROUP) != "" and off(PART_RESERVE) == ""   # 둘은 따로 꺼진다
     lib.srtoybox_test_mult(ctypes.byref(toybox.MultLayout(mul_table=MUL_TABLE, day=DAY, **CELLS)))
-    assert off(PART_MILAPPROVAL) == "" and off(PART_PARENT) == ""
+    assert off(PART_MILAPPROVAL) == "" and off(PART_GROUP) == ""
     lib.srtoybox_test_mult(ctypes.byref(toybox.MultLayout(day=DAY, **CELLS)))
     game.set("on=1 tax=200 out.0=200")
     before = bytes(game.fake.mem)[MUL_TABLE:]

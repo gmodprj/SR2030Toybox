@@ -95,7 +95,7 @@ ACT_NAMES = {"colonize": "식민지화 함수(지역 객체, 다른 지역의 �
 
 
 MULT_FIELDS = ("mul_table", "day", "tax_total", "army_pay_level", "army_upkeep_level", "army_pay", "army_upkeep", "unit_cost",
-               "research_step", "social_cost", "social_level", "social_grade", "reserve", "mil_approval", "parent")
+               "research_step", "social_cost", "social_level", "social_grade", "reserve", "mil_approval", "group")
 MULT_NAMES = {"mul_table": "곱 보정 표(지역 인덱스마다 0x320 바이트, float 200칸 — ToyBox 는 플레이어의 줄에만 쓴다)",
               "day": "날의 칸(dword. 읽기만 한다)", "tax_total": "연간 세수의 합(지역 객체 안, double. 읽기만 한다)",
               "army_pay_level": "군 인건비의 지출 수준(지역 객체 안, float. 읽기만 한다)",
@@ -106,7 +106,7 @@ MULT_NAMES = {"mul_table": "곱 보정 표(지역 인덱스마다 0x320 바이�
               "social_grade": "사회 항목 여덟의 품질 등급(지역 객체 안, float × 8, 0 … 2 — ToyBox 는 플레이어의 것에 쓴다)",
               "reserve": "예비 인원(지역 객체 안, float — 지휘 패널의 \"예비 인원\". ToyBox 는 플레이어의 것에 쓴다)",
               "mil_approval": "군부 지지율(지역 객체 안, float 0 … 1. ToyBox 는 플레이어의 것에 최소 유지로 쓴다)",
-              "parent": "위 나라 칸(지역 객체 안, word — 하위 지역이 속한 나라의 인덱스. 읽기만 한다)"}
+              "group": "묶음 칸(지역 객체 안, word — 묶인 하위 지역이 속한 나라의 지역 번호. 읽기만 한다)"}
 
 
 @dataclass

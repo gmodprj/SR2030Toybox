@@ -11,7 +11,7 @@ from srkit import toybox
 from toybox_fake_game import FakeGame
 
 MAP_GLOBAL = 0x3F00                      # 가짜 게임 안의 "지도 객체의 포인터가 든 전역"
-PARENT = 0x20C                           # 지역 객체 안의 위 나라 칸(가짜)
+GROUP = 0x20C                            # 지역 객체 안의 묶음 칸(가짜) — 묶인 하위 지역이 속한 나라의 지역 번호(word)
 MIL = 0x214                              # 지역 객체 안의 군부 지지율 칸(가짜)
 GERMANY, WEST, EAST, DENMARK, SWEDEN = 176, 171, 172, 157, 160
 DONE, NOT_IN_GAME, BAD_VALUE, OFF, UNREADABLE = 0, 1, 3, 5, 7   # game.h 의 Wrote
@@ -73,12 +73,13 @@ def game(lib):
     for index, number in ((GERMANY, 1499), (WEST, 1401), (EAST, 1402), (DENMARK, 1201), (SWEDEN, 1301)):
         fake.region(index, number)
     for sub in (WEST, EAST):
-        fake._write(sub, PARENT, "<H", GERMANY)
+        fake._write(sub, GROUP, "<H", 1499)                # 인덱스가 아니라 독일의 지역 번호
+    fake._write(DENMARK, GROUP, "<H", GERMANY)              # 덴마크의 칸에 독일의 인덱스(176)가 있어도 번호가 아니면 내 편이 아니다
     fake.play(GERMANY)
     lib.srtoybox_test_game(fake.base, ctypes.byref(fake.at))
     lib.srtoybox_test_values(ctypes.byref(fake.layout))
     lib.srtoybox_test_more(ctypes.byref(fake.more))
-    lib.srtoybox_test_mult(ctypes.byref(toybox.MultLayout(parent=PARENT, mil_approval=MIL)))
+    lib.srtoybox_test_mult(ctypes.byref(toybox.MultLayout(group=GROUP, mil_approval=MIL)))
     lib.srtoybox_test_acts(ctypes.byref(toybox.ActLayout(map=MAP_GLOBAL)), *([None] * 9))
     lib.srtoybox_test_loyalty_hook(None)
     lib.srtoybox_keeper_reset()
@@ -150,7 +151,7 @@ def test_a_hex_the_game_changed_is_skipped(lib, game):
     assert game.map.hex(8) == (GERMANY, WEST) and game.map.hex(9) == (GERMANY, SWEDEN) and game.map.hex(10) == (GERMANY, WEST)
 
 
-def test_loyalty_is_off_without_the_parent_cell(lib, game):
+def test_loyalty_is_off_without_the_group_cell(lib, game):
     lib.srtoybox_test_mult(ctypes.byref(toybox.MultLayout()))
     buf = ctypes.create_string_buffer(512)
     lib.srtoybox_loyalty_off(buf, len(buf))
@@ -258,7 +259,7 @@ def test_floors_wait_in_the_menu_and_in_multiplayer(lib, game, where):
 
 
 def test_the_military_floor_is_off_without_its_cell(lib, game):
-    lib.srtoybox_test_mult(ctypes.byref(toybox.MultLayout(parent=PARENT)))
+    lib.srtoybox_test_mult(ctypes.byref(toybox.MultLayout(group=GROUP)))
     buf = ctypes.create_string_buffer(512)
     lib.srtoybox_floor_off(MIL_FLOOR, buf, len(buf))
     assert buf.value.decode("utf-8") != ""

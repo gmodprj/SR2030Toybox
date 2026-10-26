@@ -325,8 +325,8 @@ Grades game_social_grades();
 Wrote game_write_social_grade(int item, float value);
 // 예비 인원(docs/superpowers/specs/2026-10-22-toybox-reserve-design.md). 쓰는 곳은 플레이어 지역 객체의 예비 인원 칸 하나뿐이다. 찾아야 하는 것: 예비 칸(game_mult_off(MULT_PART_RESERVE)).
 const int MULT_PART_RESERVE = 5;
-// 충성 · 지지(docs/superpowers/specs/2026-10-26-toybox-loyalty-design.md): 군부 지지율 칸 · 위 나라 칸(읽기만)
-const int MULT_PART_MILAPPROVAL = 6, MULT_PART_PARENT = 7;
+// 충성 · 지지(docs/superpowers/specs/2026-10-26-toybox-loyalty-design.md): 군부 지지율 칸 · 묶음 칸(읽기만)
+const int MULT_PART_MILAPPROVAL = 6, MULT_PART_GROUP = 7;
 const float RESERVE_MAX = 100000000.0f;     // 쓰는 값의 끝(1억 명). 읽은 값도 0 이상 이 아래여야 말이 된다
 // 플레이어의 예비 인원을 *out 에. 진행 중이 아니거나 읽을 수 없으면 거짓(값이 말이 되는지는 부른 쪽이 본다).
 bool game_reserve(float *out);
@@ -340,7 +340,7 @@ int swap_qword(uint64_t cell, uint64_t was, uint64_t now);
 int swap_dword(uint64_t cell, uint32_t was, uint32_t now);
 // 점령지 충성(docs/superpowers/specs/2026-10-26-toybox-loyalty-design.md). 쓰는 곳은 주인이 플레이어인 칸 레코드의 +2(충성 대상, word)뿐이다.
 // 지도를 한 번에 읽어(스냅숏) 주인이 플레이어이고 충성 대상 L 이 "내 편"이 아닌 칸을 고른다 — 내 편 = L 이 플레이어 인덱스이거나 L 의 지역 객체의
-// 위 나라 칸(game_mult_off(MULT_PART_PARENT))이 플레이어 인덱스. L = 0 인 칸은 건드리지 않는다. 쓰는 값은 플레이어의 "내 편" 칸에 가장 많이 든 L
+// 묶음 칸(game_mult_off(MULT_PART_GROUP))이 플레이어의 지역 번호. L = 0 인 칸은 건드리지 않는다. 쓰는 값은 플레이어의 "내 편" 칸에 가장 많이 든 L
 // (같으면 작은 인덱스) — *target, 그 지역 번호는 *number. 내 편 칸이 하나도 없으면 BadValue(한 칸도 쓰지 않는다). 지도의 꼴(칸 수가 너비의 배수 ·
 // 세로 65535 이하 · 주인과 충성 대상이 모두 지역 표 안)이 말이 안 되면 Unreadable. 칸마다 dword CAS 로 써서 그사이 게임이 바꾼 칸은 건너뛴다. *hexes 에 바꾼 칸의 수.
 // 게임의 함수는 부르지 않는다.

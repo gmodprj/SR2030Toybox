@@ -231,7 +231,8 @@ struct MultLayout {
                                // ToyBox 가 플레이어의 것에 쓴다(docs/superpowers/specs/2026-10-21-toybox-social-grades-design.md)
     uint32_t reserve;          // float. 예비 인원(지휘 패널의 "예비 인원"). 쌓이는 칸 — 게임이 더하고 뺀다. ToyBox 가 플레이어의 것에 쓴다(docs/superpowers/specs/2026-10-22-toybox-reserve-design.md)
     uint32_t mil_approval;     // float. 군부 지지율(0 … 1. CVP 의 milapproval). 날마다 다시 셈해진다. ToyBox 가 플레이어의 것에 최소 유지로 쓴다
-    uint32_t parent;           // word. 하위 지역(서독 등)이 속한 위 나라의 인덱스(0 이면 없다). 읽기만 한다 — 점령지 충성의 "내 편" 판정
+    uint32_t group;            // word. 묶인 하위 지역(서독 등)이 속한 나라의 **지역 번호**(서독 1401 → 1499. 살아 있는 나라는 0). 읽기만 한다 —
+                               // 점령지 충성의 "내 편" 판정. 2026-10-27 게임에서 봤다(+0x8c 는 해외 영토 → 본국의 인덱스였다)
                                // (docs/superpowers/specs/2026-10-26-toybox-loyalty-design.md)
 };
 
