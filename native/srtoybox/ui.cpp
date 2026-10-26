@@ -627,6 +627,115 @@ void reserve_rows(const GameState &game)
     ImGui::TextDisabled("명");
 }
 
+// ---- 충성 · 지지(docs/superpowers/specs/2026-10-26-toybox-loyalty-design.md) ----
+
+const char *const FLOOR_LABELS[FLOOR_COUNT] = {"국민 지지율", "군부 지지율", "세계 시장 여론"};
+const char *const FLOOR_IDS[FLOOR_COUNT] = {"civ", "mil", "opinion"};
+const char *const FLOOR_STATUS[FLOOR_COUNT] = {"국민 지지", "군부 지지", "여론"};
+bool g_floor_sent_on[FLOOR_COUNT] = {};
+bool g_loyalty_sent_on = false;
+bool g_loyalty_sent = false;   // 한 번이라도 넘겼는가
+int g_floor_sent_value[FLOOR_COUNT] = {-1, -1, -1};
+
+// 창의 지지율 · 여론 최소 유지를 keeper 에 넘긴다(save 면 설정 파일에도). 달라진 칸만.
+void send_floors(bool save)
+{
+    bool changed = false;
+    for (int i = 0; i < FLOOR_COUNT; i++) {
+        if (g_settings.keep_floor[i] == g_floor_sent_on[i] && g_settings.keep_floor_value[i] == g_floor_sent_value[i])
+            continue;
+        if (g_settings.keep_floor[i] != g_floor_sent_on[i] && (g_settings.keep_floor[i] || g_floor_sent_value[i] >= 0))
+            log_line("유지 %s: %s %d %%", g_settings.keep_floor[i] ? "켬" : "끔", FLOOR_STATUS[i], g_settings.keep_floor_value[i]);
+        keeper_set_floor_keep(static_cast<Floor>(i), g_settings.keep_floor[i], g_settings.keep_floor_value[i]);
+        g_floor_sent_on[i] = g_settings.keep_floor[i];
+        g_floor_sent_value[i] = g_settings.keep_floor_value[i];
+        changed = true;
+    }
+    if (!g_loyalty_sent || g_settings.keep_loyalty != g_loyalty_sent_on) {
+        if (g_loyalty_sent || g_settings.keep_loyalty)
+            log_line("유지 %s: 점령지 충성", g_settings.keep_loyalty ? "켬" : "끔");
+        keeper_set_loyalty_keep(g_settings.keep_loyalty);
+        g_loyalty_sent_on = g_settings.keep_loyalty;
+        g_loyalty_sent = changed = true;
+    }
+    if (changed && save)
+        save_settings(g_settings);
+}
+
+// 상태 줄의 뒤에 붙는 글: 켜진 유지가 있으면 " · 유지 중: 국민 지지, 여론".
+std::string floor_text()
+{
+    std::string names = g_loyalty_sent_on ? "점령지 충성" : "";
+    for (int i = 0; i < FLOOR_COUNT; i++)
+        if (g_floor_sent_on[i])
+            names += (names.empty() ? "" : ", ") + std::string(FLOOR_STATUS[i]);
+    return names.empty() ? std::string() : " · 유지 중: " + names;
+}
+
+const char *const LOYALTY_ASK = "loyalty:run";      // g_confirm: "점령지 충성"이 둘째 누름을 기다린다
+const char *const LOYALTY_HELP = "전투 · 병합으로 얻은 내 땅 가운데 아직 다른 나라에 충성하는 칸의 충성 대상을 내 나라(본토 칸에 가장 많은 충성 대상)로 바꾼다. "
+                                 "남의 나라 땅과 이미 내 편인 땅은 그대로다. 되돌릴 수 없다";
+
+// 인구·여론 탭의 아래: 충성 · 지지 묶음.
+void loyalty_rows(const GameState &game)
+{
+    ImGui::Spacing();
+    ImGui::Separator();
+    ImGui::TextUnformatted("충성 · 지지");
+    ImGui::SameLine();
+    ImGui::TextDisabled("(?)");
+    if (ImGui::IsItemHovered())
+        wrapped_tooltip(LOYALTY_HELP);
+    const std::string off = game.known ? game_loyalty_off() : std::string("게임 상태를 읽을 수 있을 때만 씁니다.");
+    const bool playing = game.known && game.in_game && !game.multiplayer;
+    if (!off.empty()) {
+        const std::string line = "점령지 충성을 쓸 수 없습니다: " + off;
+        ImGui::TextWrapped("%s", line.c_str());
+        note("loyalty:off", line);
+    } else {
+        ImGui::BeginDisabled(!playing);
+        const bool asking = g_confirm == LOYALTY_ASK;
+        const std::string text = asking ? std::string("점령지 충성 — 한 번 더 누르면 실행합니다") : std::string("점령지 충성");
+        if (ImGui::Button((text + "###loyalty").c_str())) {
+            if (asking) {
+                g_confirm.clear();
+                g_notice = keeper_enqueue({LOYALTY, Change::Add, 0}) ? "" : "대기 중인 요청이 많아 받지 못했습니다.";
+            } else {
+                g_confirm = LOYALTY_ASK;
+            }
+        }
+        note("loyalty:run", text);
+        ImGui::EndDisabled();
+        ImGui::SameLine();
+        if (ImGui::Checkbox("계속 유지##loyalty", &g_settings.keep_loyalty))   // 설정이다 — 게임 밖에서도 고칠 수 있다
+            send_floors(true);
+        note("loyalty:keep", g_settings.keep_loyalty ? "1" : "0");
+    }
+    // 지지율 · 여론의 최소 유지는 설정이다 — 게임 밖에서도 고칠 수 있다
+    for (int i = 0; i < FLOOR_COUNT; i++) {
+        const std::string why = game.known ? game_floor_off(static_cast<Floor>(i)) : std::string();
+        const std::string id = FLOOR_IDS[i];
+        if (!why.empty() && game.known) {
+            const std::string line = std::string(FLOOR_LABELS[i]) + "을(를) 쓸 수 없습니다: " + why;
+            ImGui::TextWrapped("%s", line.c_str());
+            note(("floor:" + id + ":off").c_str(), line);
+            continue;
+        }
+        if (ImGui::Checkbox((std::string(FLOOR_LABELS[i]) + " 최소 유지##floor" + id).c_str(), &g_settings.keep_floor[i]))
+            send_floors(true);
+        note(("floor:" + id).c_str(), g_settings.keep_floor[i] ? "1" : "0");
+        ImGui::SameLine(260.0f);
+        ImGui::SetNextItemWidth(120.0f);
+        if (ImGui::InputInt(("##floorvalue" + id).c_str(), &g_settings.keep_floor_value[i], 1, 10)) {
+            g_settings.keep_floor_value[i] = std::min(FLOOR_PERCENT_MAX, std::max(0, g_settings.keep_floor_value[i]));
+            send_floors(true);
+        }
+        note(("floor:" + id + ":value").c_str(), std::to_string(g_settings.keep_floor_value[i]));
+        ImGui::SameLine();
+        ImGui::TextDisabled("%%");
+    }
+}
+
 // ---- 사회: 품질 등급의 배율과 최소 유지(docs/superpowers/specs/2026-10-21-toybox-social-grades-design.md) ----
 
 static_assert(SETTINGS_SOCIAL_RATE_MAX == SOCIAL_RATE_MAX && SETTINGS_SOCIAL_KEEP_MAX == SOCIAL_KEEP_MAX,
@@ -1519,7 +1628,7 @@ void status_line(const GameState &game)
         : game.multiplayer ? "멀티플레이에서는 동작하지 않습니다"
         : !game.in_game ? "게임을 진행 중이 아닙니다 — 단추가 꺼져 있습니다"
         : "플레이 중: " + region_label(game.player) + " (" + std::to_string(game.player) + ")";
-    const std::string text = state + keep_text(game) + reserve_text() + mult_text() + social_text();   // 최소 유지 · 배율이 켜져 있으면 늘 보인다 — 켜 둔 것을 잊지 않게
+    const std::string text = state + keep_text(game) + reserve_text() + floor_text() + mult_text() + social_text();   // 최소 유지 · 배율이 켜져 있으면 늘 보인다 — 켜 둔 것을 잊지 않게
     if (!game.known)
         ImGui::TextDisabled("%s", text.c_str());
     else
@@ -1537,6 +1646,7 @@ void ui_init()
     send_mult(false);             // 배율도
     send_social(false);           // 사회도
     send_reserve(false);          // 예비 인원의 최소 유지도
+    send_floors(false);           // 지지율 · 여론의 최소 유지도
     g_units_list.list.show = Show::All;   // 설계도 목록은 전체부터 — 모두 등록해도 목록이 비지 않는다(등록 열로 가른다)
 }
 
@@ -1691,8 +1801,10 @@ void ui_draw()
                                     ImGui::SameLine();   // 연구 탭의 단추들은 한 줄에 — 아래는 목록의 자리다
                             }
                         }
-                        if (strcmp(tab, PEOPLE_TAB) == 0)
+                        if (strcmp(tab, PEOPLE_TAB) == 0) {
                             reserve_rows(game);
+                            loyalty_rows(game);
+                        }
                         ImGui::EndDisabled();
                         if (research)
                             item_list(g_research_list, false, game, blocked);

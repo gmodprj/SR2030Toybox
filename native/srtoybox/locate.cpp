@@ -442,6 +442,13 @@ const ActWanted MULTS[MULT_WANTED] = {
     // 예비 인원(2026-10-22): 생산 쪽의 읽기(0x846795) · 지역 값 다시 셈(0x769c33) · 0x7bd42e 의 읽기
     {"reserve", "예비 인원 칸", ACT_CONSTANT,
      {"F3 0F 10 81 [u32] 0F 2F C1 72 3C", "48 8D BE [u32] F3 0F 10 1F 0F 28 D1", "F3 0F 10 80 [u32] 41 0F 2F C0 0F 93 C0"}},
+    // 군부 지지율(2026-10-26): 국민 지지율 칸을 곁에서 읽는 0x764c90 · 지역 값 다시 셈(0x768a00)의 곱 · 0x704c20 의 쓰기
+    {"mil_approval", "군부 지지율 칸", ACT_CONSTANT,
+     {"8B 81 [u32] 33 F6 F3 0F 10 81 04 4B 01 00", "F3 0F 59 96 [u32] F3 0F 59 D0 0F 57 C0", "89 81 [u32] F3 0F 10 81 20 4B 01 00 0F 2E C5"}},
+    // 묶음 칸(2026-10-27): word 를 읽어 견주는 세 곳 — 0x770330 · 0xbcb320, 그리고 GUI 의 값(0x5391a0)이 다른 지역의 번호(+8)와 견준다
+    {"group", "묶음 칸", ACT_CONSTANT,
+     {"0F B7 83 [u32] 3B C8 75 4D EB 13", "45 0F B7 80 [u32] 66 45 85 C0 74 37",
+      "48 05 [u32] 0F B7 00 48 8B 8C 24 90 B6 00 00 48 83 C1 08 0F B7 09 3B C1 74 3C 48 63 84 24 14 72 00 00"}},
 };
 static_assert(sizeof(MultLayout) == MULT_WANTED * sizeof(uint32_t), "MultLayout 의 필드는 표 MULTS 의 순서대로 uint32_t 다");
 static_assert(MULT_WANTED <= ACT_WANTED, "서명 표의 크기는 가장 큰 표에 맞춘다");

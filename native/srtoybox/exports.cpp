@@ -451,6 +451,23 @@ EXPORT void srtoybox_test_acts(const ActLayout *layout, void *colonize, void *fi
     game_set_acts_for_test(layout, colonize, fight, become, elect, news, treaty, annex, spawn, deploy);
 }
 
+// 점령지 충성(game_loyalty): Wrote 의 정수. 바꾼 칸의 수, 쓴 충성 대상의 인덱스와 지역 번호.
+EXPORT int srtoybox_loyalty(int *hexes, int *target, int *number)
+{
+    return static_cast<int>(game_loyalty(hexes, target, number));
+}
+
+EXPORT int srtoybox_loyalty_off(char *out, int size)
+{
+    return put(game_loyalty_off(), out, size);
+}
+
+// 테스트: 점령지 충성의 스냅숏 뒤 · 쓰기 전에 부를 함수.
+EXPORT void srtoybox_test_loyalty_hook(void (*hook)())
+{
+    game_set_loyalty_hook_for_test(hook);
+}
+
 // 테스트: 게임의 지도에서 고른 지역의 번호(없으면 0).
 EXPORT int srtoybox_map_pick(void)
 {
@@ -872,6 +889,24 @@ EXPORT int srtoybox_keeper_mult(const char *spec)
 }
 
 // 테스트: 예비 인원의 최소 유지를 켜고 끈다.
+// 점령지 충성의 유지(켜면 바로 한 번, 그 뒤 5초마다).
+EXPORT void srtoybox_keeper_loyalty(int on)
+{
+    keeper_set_loyalty_keep(on != 0);
+}
+
+// 지지율 · 여론의 최소 유지: which 는 Floor(0 국민 지지율 · 1 군부 지지율 · 2 세계 시장 여론), percent 는 0 … 100.
+EXPORT void srtoybox_keeper_floor(int which, int on, int percent)
+{
+    if (which >= 0 && which < FLOOR_COUNT)
+        keeper_set_floor_keep(static_cast<Floor>(which), on != 0, percent);
+}
+
+EXPORT int srtoybox_floor_off(int which, char *out, int size)
+{
+    return put(which >= 0 && which < FLOOR_COUNT ? game_floor_off(static_cast<Floor>(which)) : std::string("없는 칸입니다"), out, size);
+}
+
 EXPORT void srtoybox_keeper_reserve(int on, double value)
 {
     keeper_set_reserve_keep(on != 0, static_cast<long long>(value));

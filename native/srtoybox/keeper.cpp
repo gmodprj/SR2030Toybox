@@ -77,6 +77,13 @@ uint32_t g_social_day;
 float g_social_seen[SOCIAL_COUNT];  // 지난 틱의 등급(ToyBox 가 쓴 뒤의 값) — 자정의 변화는 이것과의 차다
 bool g_social_told;                 // 이 설정으로 날마다의 일을 한 것을 로그에 적었다
 bool g_reserve_keep;                // 예비 인원의 최소 유지
+bool g_floor_on[FLOOR_COUNT];       // 지지율 · 여론의 최소 유지(Floor 순서)
+int g_floor_pct[FLOOR_COUNT];
+bool g_floor_told[FLOOR_COUNT];
+unsigned long long g_floor_at;
+bool g_loyalty_keep;                // 점령지 충성의 유지
+bool g_loyalty_due;                 // 켠 직후 — 기다리지 않고 한 번
+unsigned long long g_loyalty_at;
 long long g_reserve_floor;
 unsigned long long g_reserve_at;
 bool g_reserve_told;
@@ -100,7 +107,8 @@ std::string request_off(const Request &r)
 {
     return r.slot == TECH ? game_more_off(MORE_TECH) : r.slot == OPINION ? game_more_off(MORE_OPINION)
         : r.slot == RELATION ? game_more_off(MORE_RELATIONS) : r.slot == PEOPLE ? game_more_off(MORE_PEOPLE)
-        : r.slot == APPROVAL ? game_more_off(MORE_APPROVAL) : r.slot == RESERVE ? game_mult_off(MULT_PART_RESERVE) : game_values_off();
+        : r.slot == APPROVAL ? game_more_off(MORE_APPROVAL) : r.slot == RESERVE ? game_mult_off(MULT_PART_RESERVE)
+        : r.slot == LOYALTY ? game_loyalty_off() : game_values_off();
 }
 
 // 수를 있는 그대로 적는다: 130, 130.5
@@ -157,6 +165,18 @@ bool apply_more(const Request &r)
             g_notice = "예비 인원의 칸이 수가 아니어서 쓰지 않았습니다.";
             return true;
         }
+    } else if (r.slot == LOYALTY) {
+        int hexes = 0, target = 0, number = 0;
+        wrote = game_loyalty(&hexes, &target, &number);
+        if (wrote == Wrote::Done && hexes == 0) {
+            g_notice = "점령지 충성: 바꿀 칸이 없습니다";
+            return true;
+        }
+        if (wrote == Wrote::BadValue || wrote == Wrote::Unreadable) {
+            g_notice = wrote == Wrote::BadValue ? "점령지 충성: 내 편인 칸이 없어 쓰지 않았습니다" : "점령지 충성: 지도를 읽을 수 없어 쓰지 않았습니다";
+            return true;
+        }
+        what = "점령지 충성: " + std::to_string(hexes) + "칸 → " + region_label(number);
     } else if (r.slot == APPROVAL) {
         what = "지지율 100%";
         wrote = game_write_approval();
@@ -882,6 +902,51 @@ bool grade_sane(float v)
     return std::isfinite(v) && v >= 0.0f && v < SOCIAL_GRADE_SANE;
 }
 
+const char *const FLOOR_NAMES[FLOOR_COUNT] = {"국민 지지", "군부 지지", "여론"};
+
+// 지지율 · 여론의 최소 유지. g_lock 을 쥔 채로 부른다.
+void floor_tick(unsigned long long now_ms)
+{
+    if (!(g_floor_on[0] || g_floor_on[1] || g_floor_on[2]) || runner_calling() || runner_faulted() || now_ms - g_floor_at < KEEP_EVERY_MS
+        || !game_writes())
+        return;
+    g_floor_at = now_ms;
+    for (int i = 0; i < FLOOR_COUNT; i++) {
+        if (!g_floor_on[i])
+            continue;
+        const Floor which = static_cast<Floor>(i);
+        const float floor = static_cast<float>(g_floor_pct[i]) / 100.0f;
+        float now = 0;
+        if (!game_floor_value(which, &now) || !std::isfinite(now) || now < 0.0f || now > 1.0f || now >= floor)
+            continue;
+        if (game_write_floor_value(which, floor) == Wrote::Done && !g_floor_told[i]) {
+            g_floor_told[i] = true;
+            log_line("유지: %s %.1f %% -> %d %%", FLOOR_NAMES[i], now * 100.0f, g_floor_pct[i]);
+        }
+    }
+}
+
+// 점령지 충성의 유지: 이번 틱에 할 때인가. g_lock 을 쥔 채로 부른다. 칸을 훑는 일(loyalty_run)은 잠금 밖에서 한다 —
+// 지도가 크면(22 MB) 그리는 스레드의 keeper 호출까지 기다리게 하지 않으려고(리뷰, 2026-10-27).
+bool loyalty_due(unsigned long long now_ms)
+{
+    if (!g_loyalty_keep || runner_calling() || runner_faulted() || !game_writes())
+        return false;
+    if (!g_loyalty_due && now_ms - g_loyalty_at < LOYALTY_EVERY_MS)
+        return false;
+    g_loyalty_due = false;
+    g_loyalty_at = now_ms;
+    return true;
+}
+
+// g_lock 을 쥐지 않은 채로 부른다(game_loyalty 는 game 쪽의 잠금만 잠깐 쥔다. 게임의 함수는 부르지 않는다).
+void loyalty_run()
+{
+    int hexes = 0, target = 0, number = 0;
+    if (game_loyalty(&hexes, &target, &number) == Wrote::Done && hexes > 0)
+        log_line("유지: 점령지 충성 %d칸 → %s", hexes, region_label(number).c_str());
+}
+
 // 예비 인원의 최소 유지. g_lock 을 쥔 채로 부른다.
 void reserve_tick(unsigned long long now_ms)
 {
@@ -1060,6 +1125,25 @@ int social_count(const Social &s)
     return count;
 }
 
+void keeper_set_loyalty_keep(bool on)
+{
+    std::lock_guard<std::mutex> lock(g_lock);
+    g_loyalty_keep = on;
+    g_loyalty_due = on;
+}
+
+void keeper_set_floor_keep(Floor which, bool on, int percent)
+{
+    const int i = static_cast<int>(which);
+    if (i < 0 || i >= FLOOR_COUNT)
+        return;
+    std::lock_guard<std::mutex> lock(g_lock);
+    g_floor_on[i] = on;
+    g_floor_pct[i] = std::min(FLOOR_PERCENT_MAX, std::max(0, percent));
+    g_floor_told[i] = false;
+    g_floor_at = 0;
+}
+
 void keeper_set_reserve_keep(bool on, long long value)
 {
     std::lock_guard<std::mutex> lock(g_lock);
@@ -1139,14 +1223,18 @@ MultStats keeper_mult_stats()
 void keeper_tick(unsigned long long now_ms)
 {
     Job job;
-    bool write = false;
+    bool write = false, loyalty = false;
     {
         std::lock_guard<std::mutex> lock(g_lock);
         write = tick_locked(now_ms, &job);
         mult_tick(now_ms);                     // 단추의 요청과 최소 유지 뒤에 — 방금 쓴 국고에 그날의 세금 · 국방비를 얹는다
         social_tick(now_ms);
         reserve_tick(now_ms);
+        floor_tick(now_ms);
+        loyalty = loyalty_due(now_ms);
     }
+    if (loyalty)
+        loyalty_run();
     if (write && job.act) {
         run_act(job.what);
     } else if (write) {
@@ -1238,6 +1326,11 @@ void keeper_reset_for_test()
     forget_cells();
     g_social = Social();
     g_reserve_keep = g_reserve_told = false;
+    for (int i = 0; i < FLOOR_COUNT; i++)
+        g_floor_on[i] = g_floor_told[i] = false, g_floor_pct[i] = 0;
+    g_floor_at = 0;
+    g_loyalty_keep = g_loyalty_due = false;
+    g_loyalty_at = 0;
     g_reserve_floor = 0;
     g_reserve_at = 0;
     g_social_due = g_social_have = g_social_told = g_social_waiting = false;

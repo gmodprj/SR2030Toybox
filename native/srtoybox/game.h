@@ -41,6 +41,10 @@
 // "사회"(2026-10-21)는 플레이어 지역 객체의 사회 항목 여덟의 품질 등급 칸(float × 8 — 0 … 2, 게임 화면의 "품질 등급" ÷ 100)에 쓴다 —
 // 날이 바뀔 때 그날 게임이 움직인 양에 배율을 곱해 더 움직이고, 0.5초마다 최소 유지 값으로 올린다. 다른 지역의 등급 · 지출 수준에는 쓰지 않는다(docs/superpowers/specs/2026-10-21-toybox-social-grades-design.md).
 // "예비 인원"(2026-10-22)은 플레이어 지역 객체의 예비 인원 칸(float — 지휘 패널의 "예비 인원") 하나에 쓴다 — 단추로 더하고, 최소 유지로 올린다(docs/superpowers/specs/2026-10-22-toybox-reserve-design.md).
+// "충성 · 지지"(2026-10-26)는 지도의 칸 레코드에서 **주인이 플레이어인 칸의 +2(충성 대상, word)**와 플레이어 지역 객체의 **군부 지지율 칸**(float)에 새로 쓴다 —
+// 점령지 충성(단추 · 5초마다의 유지)은 충성 대상이 내 편(플레이어 인덱스, 또는 묶음 칸이 플레이어의 지역 번호인 하위 지역)이 아닌 내 칸만 바꾸고,
+// 국민 · 군부 지지율과 세계 시장 여론(이미 쓰는 칸)의 최소 유지는 0.5초마다 올린다. 남의 칸 · 남의 지역 객체 · 칸의 주인에는 쓰지 않고,
+// 하위 지역의 묶음 칸(+0x8a)은 읽기만 한다. 게임의 함수는 부르지 않는다(docs/superpowers/specs/2026-10-26-toybox-loyalty-design.md. 사용자가 정했다, 2026-10-26).
 // 날의 칸(전역)과 지역 객체의 예산 칸(세수 · 국방의 다섯 · 연구의 하루치 · 사회 지출의 비용 여덟과 수준 여덟)은 읽기만 한다. 게임의 함수는 부르지 않는다. 사용자가 정했다(2026-10-11).
 // 지역 객체의 이름 글(포인터 한 칸 — 이번 판 · 지금 언어의 나라 이름)도 읽기만 한다: 창의 나라 이름이 그것을 따른다(DLC 의 역사 시나리오는 같은 번호가 다른 나라다. 2026-10-12).
 // 읽기만 하는 전역이 넷 더 있다: 게임에서 고른 부대들의 목록(보급), 그리고 "지도에서 고른 지역"(전쟁의 첫째 나라), 지도 객체(병합이 칸의 주인을 읽는다 · 부대 생성이 칸이 지도 안인지 본다),
@@ -325,6 +329,8 @@ Grades game_social_grades();
 Wrote game_write_social_grade(int item, float value);
 // 예비 인원(docs/superpowers/specs/2026-10-22-toybox-reserve-design.md). 쓰는 곳은 플레이어 지역 객체의 예비 인원 칸 하나뿐이다. 찾아야 하는 것: 예비 칸(game_mult_off(MULT_PART_RESERVE)).
 const int MULT_PART_RESERVE = 5;
+// 충성 · 지지(docs/superpowers/specs/2026-10-26-toybox-loyalty-design.md): 군부 지지율 칸 · 묶음 칸(읽기만)
+const int MULT_PART_MILAPPROVAL = 6, MULT_PART_GROUP = 7;
 const float RESERVE_MAX = 100000000.0f;     // 쓰는 값의 끝(1억 명). 읽은 값도 0 이상 이 아래여야 말이 된다
 // 플레이어의 예비 인원을 *out 에. 진행 중이 아니거나 읽을 수 없으면 거짓(값이 말이 되는지는 부른 쪽이 본다).
 bool game_reserve(float *out);
@@ -334,6 +340,26 @@ Wrote game_write_reserve(float value);
 void game_set_mult_for_test(const MultLayout *layout);
 // cell 의 qword 가 was 이면 now 로 바꾼다(CAS). 0 바꿨다 · 1 값이 was 가 아니었다(그대로 둔다) · -1 쓸 수 없다. write_research 가 지역 코드 칸에 쓴다.
 int swap_qword(uint64_t cell, uint64_t was, uint64_t now);
+// cell 의 dword 가 was 이면 now 로 바꾼다(CAS). 돌려주는 값은 swap_qword 와 같다. game_loyalty 가 칸 레코드의 +0 (주인 | 충성 대상)에 쓴다.
+int swap_dword(uint64_t cell, uint32_t was, uint32_t now);
+// 점령지 충성(docs/superpowers/specs/2026-10-26-toybox-loyalty-design.md). 쓰는 곳은 주인이 플레이어인 칸 레코드의 +2(충성 대상, word)뿐이다.
+// 지도를 한 번에 읽어(스냅숏) 주인이 플레이어이고 충성 대상 L 이 "내 편"이 아닌 칸을 고른다 — 내 편 = L 이 플레이어 인덱스이거나 L 의 지역 객체의
+// 묶음 칸(game_mult_off(MULT_PART_GROUP))이 플레이어의 지역 번호. L = 0 인 칸은 건드리지 않는다. 쓰는 값은 플레이어의 "내 편" 칸에 가장 많이 든 L
+// (같으면 작은 인덱스) — *target, 그 지역 번호는 *number. 내 편 칸이 하나도 없으면 BadValue(한 칸도 쓰지 않는다). 지도의 꼴(칸 수가 너비의 배수 ·
+// 세로 65535 이하 · 주인과 충성 대상이 모두 지역 표 안)이 말이 안 되면 Unreadable. 칸마다 dword CAS 로 써서 그사이 게임이 바꾼 칸은 건너뛴다. *hexes 에 바꾼 칸의 수.
+// 게임의 함수는 부르지 않는다.
+Wrote game_loyalty(int *hexes, int *target, int *number);
+std::string game_loyalty_off();             // 점령지 충성을 쓸 수 없는 까닭(창에 그대로 보인다). 쓸 수 있으면 빈 글
+void game_set_loyalty_hook_for_test(void (*hook)());   // 테스트: 스냅숏 뒤 · 쓰기 전에 부를 함수(없으면 nullptr)
+// 지지율 · 여론의 최소 유지(같은 설계서). 쓰는 곳은 플레이어의 국민 지지율(MORE_APPROVAL 의 칸) · 군부 지지율(MULT_PART_MILAPPROVAL) ·
+// 세계 시장 여론(MORE_OPINION 의 둘째 칸) — 셋 다 float 0 … 1.
+enum class Floor { Civ = 0, Mil = 1, Opinion = 2 };
+const int FLOOR_COUNT = 3;
+std::string game_floor_off(Floor which);    // 그 칸을 쓸 수 없는 까닭. 쓸 수 있으면 빈 글
+// 플레이어의 그 칸을 *out 에. 진행 중이 아니거나 읽을 수 없으면 거짓(값이 말이 되는지는 부른 쪽이 본다).
+bool game_floor_value(Floor which, float *out);
+// 그 칸에 value 를 쓴다. value 와 지금 값이 모두 0 … 1 의 유한한 수일 때만(아니면 BadValue). 쓰기가 실패하면 값 쓰기 전체를 끈다(Failed).
+Wrote game_write_floor_value(Floor which, float value);
 
 // 테스트: 이 프로세스의 "게임"을 가짜 메모리로 바꾼다. handler 는 명령 처리 함수 자리에 둘 함수(없으면 nullptr).
 // 값의 자리는 비워 두고 값 쓰기의 실패 표시도 지운다 — 자리는 game_set_values_for_test 로 따로 준다.

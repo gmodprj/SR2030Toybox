@@ -7,6 +7,7 @@
 #include <memory>
 #include <string>
 
+#include "game.h"
 #include "locate.h"
 #include "research.h"
 #include "values.h"
@@ -18,6 +19,7 @@ const int OPINION = -4;                        // Request.slot: 세계 시장 �
 const int PEOPLE = -6;                         // Request.slot: 인구 칸과 그 풀에 amount(명)를 더한다(change 는 보지 않는다)
 const int APPROVAL = -7;                       // Request.slot: 국내 지지율을 100% 로(change · amount 는 보지 않는다)
 const int RESERVE = -8;                        // Request.slot: 예비 인원에 amount(명)를 더한다(끝 RESERVE_MAX. change 는 보지 않는다)
+const int LOYALTY = -9;                        // Request.slot: 점령지 충성 — 내 편이 아닌 내 칸의 충성 대상을 내 편으로(change · amount 는 보지 않는다)
 const int RELATION = -5;                       // Request.slot: region 의 나라와의 관계를 amount 로, 전쟁 명분을 0 으로(change 는 보지 않는다)
 
 struct Request {
@@ -190,5 +192,14 @@ int social_count(const Social &social);           // 100 이 아닌 배율(on �
 // 예비 인원의 최소 유지(docs/superpowers/specs/2026-10-22-toybox-reserve-design.md). KEEP_EVERY_MS 마다, 켜져 있으면 예비가 value 보다 적을 때 value 로 쓴다. 저장되는 설정이다.
 const long long RESERVE_KEEP_MAX = 100000000;    // 유지 값의 끝(명)
 void keeper_set_reserve_keep(bool on, long long value);
+
+// 지지율 · 여론의 최소 유지(docs/superpowers/specs/2026-10-26-toybox-loyalty-design.md). KEEP_EVERY_MS 마다, 켜진 칸이 percent / 100 보다 낮으면
+// 그 값으로 쓴다(game_write_floor_value). 저장되는 설정이다.
+const int FLOOR_PERCENT_MAX = 100;
+void keeper_set_floor_keep(Floor which, bool on, int percent);
+// 점령지 충성의 유지(같은 설계서). 켜져 있으면 LOYALTY_EVERY_MS 마다(켠 직후에는 바로) game_loyalty 를 부른다 — 새로 얻은 땅도 따라온다.
+// 칸 레코드가 크므로(2030 - 세계 22 MB) 0.5초마다 훑지 않는다. 저장되는 설정이다.
+const unsigned long long LOYALTY_EVERY_MS = 5000;
+void keeper_set_loyalty_keep(bool on);
 
 void keeper_reset_for_test();

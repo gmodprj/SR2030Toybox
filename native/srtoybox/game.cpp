@@ -1097,6 +1097,17 @@ int swap_qword(uint64_t cell, uint64_t was, uint64_t now)
     return static_cast<uint64_t>(seen) == was ? 0 : 1;
 }
 
+int swap_dword(uint64_t cell, uint32_t was, uint32_t now)
+{
+    LONG seen = 0;
+    __try {
+        seen = InterlockedCompareExchange(reinterpret_cast<volatile LONG *>(cell), static_cast<LONG>(now), static_cast<LONG>(was));
+    } __except (EXCEPTION_EXECUTE_HANDLER) {
+        return -1;
+    }
+    return static_cast<uint32_t>(seen) == was ? 0 : 1;
+}
+
 Wrote write_research(const uint8_t *base, const GameAddresses &at, const ResearchLayout &research, Recompute recompute, Research action,
                      const ResearchWhat &what, ResearchDone *done)
 {
@@ -1426,9 +1437,9 @@ void game_init_from(const uint8_t *base, size_t size)
     if (state) {
         if (multiplying == (1 << MULT_WANTED) - 1) {
             log_line("배율을 씁니다 (곱 보정 표 +0x%X · 날의 칸 +0x%X · 연간 세수 +0x%X · 군 인건비 +0x%X × +0x%X · 군 유지비 +0x%X × +0x%X · "
-                     "부대 생산비 +0x%X · 연구의 하루치 +0x%X · 사회 지출 +0x%X × +0x%X · 품질 등급 +0x%X · 예비 인원 +0x%X)",
+                     "부대 생산비 +0x%X · 연구의 하루치 +0x%X · 사회 지출 +0x%X × +0x%X · 품질 등급 +0x%X · 예비 인원 +0x%X · 군부 지지율 +0x%X · 묶음 +0x%X)",
                      mult.mul_table, mult.day, mult.tax_total, mult.army_pay_level, mult.army_pay, mult.army_upkeep_level, mult.army_upkeep,
-                     mult.unit_cost, mult.research_step, mult.social_level, mult.social_cost, mult.social_grade, mult.reserve);
+                     mult.unit_cost, mult.research_step, mult.social_level, mult.social_cost, mult.social_grade, mult.reserve, mult.mil_approval, mult.group);
         } else {
             int missing = 0, first = -1;           // 한 줄로: 처음 못 찾은 것과 그 밖의 수
             for (int w = 0; w < MULT_WANTED; w++)
@@ -2350,6 +2361,114 @@ Wrote game_annex(int number, unsigned long *code, int *hexes)
         ? Wrote::Done : Wrote::Crashed;
 }
 
+void (*g_loyalty_hook)() = nullptr;
+
+void game_set_loyalty_hook_for_test(void (*hook)())
+{
+    std::lock_guard<std::mutex> lock(g_lock);
+    g_loyalty_hook = hook;
+}
+
+std::string game_loyalty_off()
+{
+    const std::string group = game_mult_off(MULT_PART_GROUP);
+    if (!group.empty())
+        return group;
+    std::lock_guard<std::mutex> lock(g_lock);
+    return off_text(g_map != 0, g_act_why[13]);
+}
+
+Wrote game_loyalty(int *hexes, int *target, int *number)
+{
+    *hexes = 0;
+    *target = 0;
+    *number = 0;
+    if (!game_loyalty_off().empty())
+        return Wrote::Off;
+    const uint8_t *base = nullptr;
+    GameAddresses at = {};
+    uint32_t where = 0, group = 0;
+    void (*hook)() = nullptr;
+    {
+        std::lock_guard<std::mutex> lock(g_lock);
+        base = g_base;
+        at = g_at;
+        where = g_map;
+        group = g_mult.group;
+        hook = g_loyalty_hook;
+    }
+    uint64_t mine = 0;
+    const GameState s = read_player(base, at, &mine);
+    if (!s.in_game || s.multiplayer)
+        return Wrote::NotInGame;
+    const int me = s.index;
+    uint64_t map = 0;
+    uint8_t head[MAP_COUNT + 4] = {};
+    if (!peek_at(base, where, &map) || map == 0 || !peek(reinterpret_cast<const void *>(map), head, sizeof(head)))
+        return Wrote::Unreadable;
+    const uint64_t cells = field<uint64_t>(head, MAP_HEXES);
+    const int32_t width = field<int32_t>(head, MAP_WIDTH), count = field<int32_t>(head, MAP_COUNT);
+    // 칸 수의 위끝: 2030 - 세계는 1,406,000칸. 낡은 포인터의 엉뚱한 칸 수로 수십 GB 를 잡지 않는다(리뷰, 2026-10-27 — 유지가 5초마다 저절로 부른다)
+    const int32_t MAP_COUNT_MAX = 0x1000000;
+    if (cells == 0 || width < 1 || width > 0xFFFF || count < width || count > MAP_COUNT_MAX || count % width != 0 || count / width > 0xFFFF)
+        return Wrote::Unreadable;
+    std::vector<uint8_t> raw(static_cast<size_t>(count) * HEX_SIZE);
+    if (!peek(reinterpret_cast<const void *>(cells), raw.data(), raw.size()))
+        return Wrote::Unreadable;
+    std::vector<int8_t> side(MAX_REGIONS, -1);           // 충성 대상마다: -1 아직 모른다 · 0 남 · 1 내 편
+    const auto loyal_to_me = [&](int l) {
+        if (l == me)
+            return true;
+        if (side[static_cast<size_t>(l)] < 0) {
+            uint64_t slot = 0;
+            uint16_t up = 0;
+            side[static_cast<size_t>(l)] = peek_at(base, at.region_table + 8ull * static_cast<uint64_t>(l), &slot) && slot != 0
+                && peek_in(slot, group, &up) && s.player > 0 && up == s.player ? 1 : 0;
+        }
+        return side[static_cast<size_t>(l)] == 1;
+    };
+    std::vector<int> mine_count(MAX_REGIONS, 0), list;
+    for (int i = 0; i < count; i++) {
+        const uint8_t *record = raw.data() + static_cast<size_t>(i) * HEX_SIZE;
+        const uint16_t owner = field<uint16_t>(record, 0), loyal = field<uint16_t>(record, 2);
+        if (owner >= MAX_REGIONS || loyal >= MAX_REGIONS)
+            return Wrote::Unreadable;                     // 칸 레코드의 꼴이 다르다 — 한 칸도 쓰지 않는다
+        if (owner != me || loyal == 0)
+            continue;
+        if (loyal_to_me(loyal))
+            mine_count[loyal]++;
+        else
+            list.push_back(i);
+    }
+    int best = 0;
+    for (int l = 1; l < MAX_REGIONS; l++)
+        if (mine_count[static_cast<size_t>(l)] > mine_count[static_cast<size_t>(best)])
+            best = l;
+    if (mine_count[static_cast<size_t>(best)] == 0)
+        return Wrote::BadValue;                           // 내 편 칸이 없다 — 판정이 틀렸을 수 있으니 본토를 다시 쓰지 않는다
+    *target = best;
+    uint64_t slot = 0;
+    uint16_t named = 0;
+    if (peek_at(base, at.region_table + 8ull * static_cast<uint64_t>(best), &slot) && slot != 0 && peek_in(slot, 8, &named))
+        *number = named;
+    if (list.empty())
+        return Wrote::Done;
+    if (hook != nullptr)
+        hook();
+    if (!game_writes())
+        return Wrote::Off;
+    for (const int i : list) {
+        const uint32_t was = field<uint32_t>(raw.data() + static_cast<size_t>(i) * HEX_SIZE, 0);
+        const uint32_t now = (was & 0xFFFFu) | static_cast<uint32_t>(best) << 16;
+        const int r = swap_dword(cells + static_cast<uint64_t>(i) * HEX_SIZE, was, now);
+        if (r < 0)
+            return write_failed("칸의 충성 대상", static_cast<int>(list.size()), *hexes);
+        if (r == 0)
+            ++*hexes;
+    }
+    return Wrote::Done;
+}
+
 Wrote game_treaty(int number, unsigned long *code)
 {
     *code = 0;
@@ -2691,6 +2810,10 @@ std::string game_mult_off(int part)
         why = missing(1, 1) != nullptr ? missing(1, 1) : missing(11, 11);
     else if (part == MULT_PART_RESERVE)
         why = missing(12, 12);
+    else if (part == MULT_PART_MILAPPROVAL)
+        why = missing(13, 13);
+    else if (part == MULT_PART_GROUP)
+        why = missing(14, 14);
     else
         return "없는 묶음입니다";
     if (why != nullptr)
@@ -2892,6 +3015,70 @@ Wrote game_write_reserve(float value)
         return Wrote::BadValue;
     if (!poke(where, &value, sizeof(value)))
         return write_failed("예비 인원 칸", 1, 0);
+    return Wrote::Done;
+}
+
+const char *const FLOOR_CELLS[FLOOR_COUNT] = {"국민 지지율 칸", "군부 지지율 칸", "세계 시장 여론 칸"};
+
+std::string game_floor_off(Floor which)
+{
+    if (which == Floor::Civ)
+        return game_more_off(MORE_APPROVAL);
+    if (which == Floor::Opinion)
+        return game_more_off(MORE_OPINION);
+    const std::string mult = game_mult_off(MULT_PART_MILAPPROVAL);
+    if (!mult.empty())
+        return mult;
+    std::lock_guard<std::mutex> lock(g_lock);
+    return off_text(true, "");
+}
+
+uint64_t floor_cell(Floor which)
+{
+    if (!game_floor_off(which).empty())
+        return 0;
+    const uint8_t *base = nullptr;
+    GameAddresses at = {};
+    MoreLayout more = {};
+    MultLayout mult = {};
+    {
+        std::lock_guard<std::mutex> lock(g_lock);
+        base = g_base;
+        at = g_at;
+        more = g_more;
+        mult = g_mult;
+    }
+    uint64_t player = 0;
+    const GameState s = read_player(base, at, &player);
+    if (!s.in_game || s.multiplayer || player == 0)
+        return 0;
+    const uint32_t off = which == Floor::Civ ? more.approval : which == Floor::Mil ? mult.mil_approval : more.opinion[1];
+    return off == 0 ? 0 : player + off;
+}
+
+bool floor_sane(float v)
+{
+    return std::isfinite(v) && v >= 0.0f && v <= 1.0f;
+}
+
+bool game_floor_value(Floor which, float *out)
+{
+    const uint64_t where = floor_cell(which);
+    return where != 0 && peek(reinterpret_cast<const uint8_t *>(where), out, sizeof(*out));
+}
+
+Wrote game_write_floor_value(Floor which, float value)
+{
+    if (!game_floor_off(which).empty() || !game_writes())
+        return Wrote::Off;
+    const uint64_t where = floor_cell(which);
+    if (where == 0)
+        return Wrote::NotInGame;
+    float now = 0;
+    if (!floor_sane(value) || !peek(reinterpret_cast<const uint8_t *>(where), &now, sizeof(now)) || !floor_sane(now))
+        return Wrote::BadValue;
+    if (!poke(where, &value, sizeof(value)))
+        return write_failed(FLOOR_CELLS[static_cast<int>(which)], 1, 0);
     return Wrote::Done;
 }
 
