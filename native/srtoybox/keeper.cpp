@@ -926,15 +926,22 @@ void floor_tick(unsigned long long now_ms)
     }
 }
 
-// 점령지 충성의 유지. g_lock 을 쥔 채로 부른다(game_loyalty 는 게임의 함수를 부르지 않는다 — 쓰기만 한다).
-void loyalty_tick(unsigned long long now_ms)
+// 점령지 충성의 유지: 이번 틱에 할 때인가. g_lock 을 쥔 채로 부른다. 칸을 훑는 일(loyalty_run)은 잠금 밖에서 한다 —
+// 지도가 크면(22 MB) 그리는 스레드의 keeper 호출까지 기다리게 하지 않으려고(리뷰, 2026-10-27).
+bool loyalty_due(unsigned long long now_ms)
 {
     if (!g_loyalty_keep || runner_calling() || runner_faulted() || !game_writes())
-        return;
+        return false;
     if (!g_loyalty_due && now_ms - g_loyalty_at < LOYALTY_EVERY_MS)
-        return;
+        return false;
     g_loyalty_due = false;
     g_loyalty_at = now_ms;
+    return true;
+}
+
+// g_lock 을 쥐지 않은 채로 부른다(game_loyalty 는 game 쪽의 잠금만 잠깐 쥔다. 게임의 함수는 부르지 않는다).
+void loyalty_run()
+{
     int hexes = 0, target = 0, number = 0;
     if (game_loyalty(&hexes, &target, &number) == Wrote::Done && hexes > 0)
         log_line("유지: 점령지 충성 %d칸 → %s", hexes, region_label(number).c_str());
@@ -1135,8 +1142,6 @@ void keeper_set_floor_keep(Floor which, bool on, int percent)
     g_floor_pct[i] = std::min(FLOOR_PERCENT_MAX, std::max(0, percent));
     g_floor_told[i] = false;
     g_floor_at = 0;
-    g_loyalty_keep = g_loyalty_due = false;
-    g_loyalty_at = 0;
 }
 
 void keeper_set_reserve_keep(bool on, long long value)
@@ -1218,7 +1223,7 @@ MultStats keeper_mult_stats()
 void keeper_tick(unsigned long long now_ms)
 {
     Job job;
-    bool write = false;
+    bool write = false, loyalty = false;
     {
         std::lock_guard<std::mutex> lock(g_lock);
         write = tick_locked(now_ms, &job);
@@ -1226,8 +1231,10 @@ void keeper_tick(unsigned long long now_ms)
         social_tick(now_ms);
         reserve_tick(now_ms);
         floor_tick(now_ms);
-        loyalty_tick(now_ms);
+        loyalty = loyalty_due(now_ms);
     }
+    if (loyalty)
+        loyalty_run();
     if (write && job.act) {
         run_act(job.what);
     } else if (write) {
@@ -1322,6 +1329,8 @@ void keeper_reset_for_test()
     for (int i = 0; i < FLOOR_COUNT; i++)
         g_floor_on[i] = g_floor_told[i] = false, g_floor_pct[i] = 0;
     g_floor_at = 0;
+    g_loyalty_keep = g_loyalty_due = false;
+    g_loyalty_at = 0;
     g_reserve_floor = 0;
     g_reserve_at = 0;
     g_social_due = g_social_have = g_social_told = g_social_waiting = false;

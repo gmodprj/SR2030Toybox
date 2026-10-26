@@ -2408,7 +2408,9 @@ Wrote game_loyalty(int *hexes, int *target, int *number)
         return Wrote::Unreadable;
     const uint64_t cells = field<uint64_t>(head, MAP_HEXES);
     const int32_t width = field<int32_t>(head, MAP_WIDTH), count = field<int32_t>(head, MAP_COUNT);
-    if (cells == 0 || width < 1 || width > 0xFFFF || count < width || count % width != 0 || count / width > 0xFFFF)
+    // 칸 수의 위끝: 2030 - 세계는 1,406,000칸. 낡은 포인터의 엉뚱한 칸 수로 수십 GB 를 잡지 않는다(리뷰, 2026-10-27 — 유지가 5초마다 저절로 부른다)
+    const int32_t MAP_COUNT_MAX = 0x1000000;
+    if (cells == 0 || width < 1 || width > 0xFFFF || count < width || count > MAP_COUNT_MAX || count % width != 0 || count / width > 0xFFFF)
         return Wrote::Unreadable;
     std::vector<uint8_t> raw(static_cast<size_t>(count) * HEX_SIZE);
     if (!peek(reinterpret_cast<const void *>(cells), raw.data(), raw.size()))

@@ -318,3 +318,31 @@ def test_the_settings_keep_the_loyalty_line(lib):
         return dict(line.split("=") for line in buf.value.decode("utf-8").split("\n") if line)
     assert norm("keep.loyalty=1\n")["keep.loyalty"] == "1"
     assert norm("keep.loyalty=2\n")["keep.loyalty"] == "0"
+
+
+# ---- 리뷰에서 나온 것 ----
+
+def test_touching_a_floor_keeps_the_loyalty_keep_running(lib, game):
+    """지지율 · 여론의 유지를 고쳐도 점령지 충성의 유지는 그대로 돈다(리뷰 Critical 1)."""
+    lib.srtoybox_keeper_loyalty(1)
+    lib.srtoybox_keeper_floor(CIV, 1, 60)
+    lib.srtoybox_keeper_tick_at(100_000)
+    assert game.map.hex(8) == (GERMANY, WEST)
+
+
+def test_the_loyalty_keep_is_reset_between_tests(lib, game):
+    """keeper 를 처음으로 돌리면 점령지 충성의 유지도 꺼진다(리뷰 Important 3)."""
+    lib.srtoybox_keeper_loyalty(1)
+    lib.srtoybox_keeper_reset()
+    lib.srtoybox_keeper_tick_at(100_000)
+    assert game.map.hex(8) == (GERMANY, DENMARK)
+
+
+def test_a_map_head_that_claims_billions_of_hexes_is_refused(lib, game):
+    """낡은 포인터로 칸 수가 엉뚱하게 크면 수십 GB 를 잡지 않고 Unreadable(리뷰 Minor 4 → Important)."""
+    struct.pack_into("<i", game.map.head, 0x80, 0xFFFF)
+    struct.pack_into("<i", game.map.head, 0x88, 0xFFFF * 0x7FFF)
+    import time
+    began = time.perf_counter()
+    assert loyalty(lib)[0] == UNREADABLE
+    assert time.perf_counter() - began < 1.0     # 잡지 않았으면 바로 돌아온다(고치기 전에는 19초 — 게임의 창 스레드가 멈춘다)
