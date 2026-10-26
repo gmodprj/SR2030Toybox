@@ -335,7 +335,7 @@ void game_set_mult_for_test(const MultLayout *layout);
 // cell 의 qword 가 was 이면 now 로 바꾼다(CAS). 0 바꿨다 · 1 값이 was 가 아니었다(그대로 둔다) · -1 쓸 수 없다. write_research 가 지역 코드 칸에 쓴다.
 int swap_qword(uint64_t cell, uint64_t was, uint64_t now);
 
-// 테스트: 이 프로세스의 "게임"을 가짜 메모리로 바꾼다. handler 는 명령 처리 함수 자리에 둘 함수(없으면 nullptr).
+// 테스트: 이 프로세스의 "게임"을 가짜 메모리로 바꾼다.
 // 값의 자리는 비워 두고 값 쓰기의 실패 표시도 지운다 — 자리는 game_set_values_for_test 로 따로 준다.
 void game_set_for_test(const uint8_t *base, const GameAddresses *at);
 void game_set_values_for_test(const ValueLayout *layout);

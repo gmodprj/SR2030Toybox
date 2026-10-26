@@ -259,7 +259,7 @@ EXPORT int srtoybox_sig_find(const unsigned char *image, unsigned long long size
     return put(text + line, out, out_size);
 }
 
-// 옛 찾기(전환 기간에만): 명령 처리 함수 · this · 옵션 묶음을 치트 닻으로. 0 이면 out 의 그 셋을 채웠다. -1 이면 error 에 까닭.
+// 옛 찾기(검증 도구와 테스트의 대조만 부른다 — DLL 의 기능은 쓰지 않는다): 명령 처리 함수 · this · 옵션 묶음을 치트 닻으로. 0 이면 out 의 그 셋을 채웠다. -1 이면 error 에 까닭.
 EXPORT int srtoybox_locate_legacy(const unsigned char *image, unsigned long long size, GameAddresses *out, char *error, int error_size)
 {
     GameAddresses found = {};

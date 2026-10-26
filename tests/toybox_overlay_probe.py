@@ -117,8 +117,8 @@ WM_TIMER, WM_MOUSEWHEEL = 0x113, 0x20A
 TIMER_ID = 0x7B0C0001       # ToyBox 의 실행기가 게임 창에 건 타이머(native/srtoybox/input.cpp)
 REAL_KEY = 0x00140001       # 실제 키보드의 메시지처럼 스캔 코드가 든 lParam (ToyBox 의 실행기가 보내는 것은 스캔 코드가 0 이다)
 # 설정 창의 자리: 처음 뜨는 곳 40,60 · 크기 500x460 (build/verify/toybox/G1-open.png). 단추의 자리는 창에게 묻는다(Game.spot)
-CHEAT_TAB = "tab:화면·진행"   # 아직 내장 치트로 도는 단추가 있는 탭(첫 탭 "돈"은 값 쓰기 전용 화면이다)
-BUTTON = "run:fullmapshow"   # 그 탭의 첫 줄 "GUI 숨기기/보이기" (cheat fullmapshow) — 묶음 6 에서 옮길 때까지 남는다
+CHEAT_TAB = "tab:화면·진행"   # 게임의 함수를 부르는 단추가 있는 탭(첫 탭 "돈"은 값 쓰기 전용 화면이다). 이름은 내장 치트로 돌던 때의 것이다
+BUTTON = "run:fullmapshow"   # 그 탭의 첫 줄 "GUI 숨기기/보이기" — GUI 객체의 가상 함수를 부른다(예전에는 cheat fullmapshow)
 TITLE = (300, 70)           # 제목 줄 — 눌러도 아무 일도 없다
 NO_DIRTY_RECTS = (ctypes.c_byte * 40)()     # 0 으로 채운 DXGI_PRESENT_PARAMETERS (Present1 이 읽는 동안 살아 있어야 한다)
 
@@ -907,7 +907,7 @@ def run_window(hook: str, mode: str) -> int:
         game.wait(0.4)
         out["became"] = [call[:2] for call in fake.became]
     elif mode == "confirm_fault":
-        game.click(CHEAT_TAB)                                 # 아직 내장 치트로 도는 줄이 있는 탭 — 명령 처리 함수가 죽는다
+        game.click(CHEAT_TAB)                                 # 게임의 함수를 부르는 줄이 있는 탭 — 가짜 GUI 함수 안에서 예외가 난다
         game.click(BUTTON)
         game.wait(0.4)
         out["at_top"] = game.shown("fault")

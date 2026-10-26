@@ -40,7 +40,7 @@ ADDRESS_NAMES = {"handler": "명령 처리 함수", "context": "그 함수의 �
                  "region_count": "지역 수(dword)"}
 # 새 찾기(서명)가 채우는 일곱 — native/srtoybox/locate.cpp 의 표 STATE 와 같은 순서다
 STATE_FIELDS = ["multiplayer", "program_state", "mode_state", "player_index", "player_pointer", "region_table", "region_count"]
-# 옛 찾기(치트 닻)가 채우는 셋 — 아직 내장 치트로 도는 기능이 쓴다(전환 기간에만)
+# 옛 찾기(치트 닻)가 채우는 셋 — 검증 도구(gamedrive.py peek 의 치트 허용 비트 · srkit locate)와 테스트의 대조만 쓴다
 LEGACY_FIELDS = ["handler", "context", "options"]
 # 새 찾기(서명)가 채우는 값 묶음 — native/srtoybox/locate.h 의 ValueLayout 과 같은 순서다
 VALUE_FIELDS = ["world_pointer", "treasury", "stock_first", "stock_step", "used_first", "used_step"]
