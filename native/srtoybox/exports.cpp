@@ -889,6 +889,12 @@ EXPORT int srtoybox_keeper_mult(const char *spec)
 }
 
 // 테스트: 예비 인원의 최소 유지를 켜고 끈다.
+// 점령지 충성의 유지(켜면 바로 한 번, 그 뒤 5초마다).
+EXPORT void srtoybox_keeper_loyalty(int on)
+{
+    keeper_set_loyalty_keep(on != 0);
+}
+
 // 지지율 · 여론의 최소 유지: which 는 Floor(0 국민 지지율 · 1 군부 지지율 · 2 세계 시장 여론), percent 는 0 … 100.
 EXPORT void srtoybox_keeper_floor(int which, int on, int percent)
 {

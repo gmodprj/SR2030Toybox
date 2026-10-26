@@ -33,6 +33,7 @@ def lib(cfg):
     lib.srtoybox_keeper_text.argtypes = [ctypes.c_char_p, ctypes.c_int]
     lib.srtoybox_keeper_tick_at.argtypes = [ctypes.c_ulonglong]
     lib.srtoybox_keeper_floor.argtypes = [ctypes.c_int, ctypes.c_int, ctypes.c_int]
+    lib.srtoybox_keeper_loyalty.argtypes = [ctypes.c_int]
     lib.srtoybox_floor_off.argtypes = [ctypes.c_int, ctypes.c_char_p, ctypes.c_int]
     lib.srtoybox_settings_normalize.argtypes = [ctypes.c_char_p, ctypes.c_char_p, ctypes.c_int]
     lib.srtoybox_loyalty_off.argtypes = [ctypes.c_char_p, ctypes.c_int]
@@ -281,3 +282,39 @@ def test_the_settings_keep_the_floor_lines(lib):
     assert [got[k] for k in keys] == ["1", "100", "1", "0", "1", "55"]
     bad = norm("keep.civapproval=2\nkeep.civapproval.value=101\nkeep.milapproval.value=-1\nkeep.opinion.value=x\n")
     assert [bad[k] for k in keys] == ["0", "0", "0", "0", "0", "0"]
+
+
+# ---- 점령지 충성의 유지 ----
+
+def test_the_loyalty_keep_runs_every_five_seconds(lib, game):
+    lib.srtoybox_keeper_loyalty(1)
+    lib.srtoybox_keeper_tick_at(100_000)
+    assert game.map.hex(8) == (GERMANY, WEST)                  # 켜면 바로 한 번
+    struct.pack_into("<HH", game.map.records, 16 * 12, GERMANY, SWEDEN)   # 스웨덴 칸 하나를 새로 얻었다
+    lib.srtoybox_keeper_tick_at(104_999)
+    assert game.map.hex(12) == (GERMANY, SWEDEN)               # 5초가 안 됐다
+    lib.srtoybox_keeper_tick_at(105_000)
+    assert game.map.hex(12) == (GERMANY, WEST)
+
+
+def test_the_loyalty_keep_writes_nothing_while_off(lib, game):
+    lib.srtoybox_keeper_loyalty(1)
+    lib.srtoybox_keeper_loyalty(0)
+    lib.srtoybox_keeper_tick_at(100_000)
+    assert game.map.hex(8) == (GERMANY, DENMARK)
+
+
+def test_the_loyalty_keep_waits_in_the_menu(lib, game):
+    lib.srtoybox_keeper_loyalty(1)
+    game.menu()
+    lib.srtoybox_keeper_tick_at(100_000)
+    assert game.map.hex(8) == (GERMANY, DENMARK)
+
+
+def test_the_settings_keep_the_loyalty_line(lib):
+    def norm(ini: str) -> dict:
+        buf = ctypes.create_string_buffer(65536)
+        lib.srtoybox_settings_normalize(ini.encode("utf-8"), buf, len(buf))
+        return dict(line.split("=") for line in buf.value.decode("utf-8").split("\n") if line)
+    assert norm("keep.loyalty=1\n")["keep.loyalty"] == "1"
+    assert norm("keep.loyalty=2\n")["keep.loyalty"] == "0"

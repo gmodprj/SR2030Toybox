@@ -81,6 +81,9 @@ bool g_floor_on[FLOOR_COUNT];       // 지지율 · 여론의 최소 유지(Floo
 int g_floor_pct[FLOOR_COUNT];
 bool g_floor_told[FLOOR_COUNT];
 unsigned long long g_floor_at;
+bool g_loyalty_keep;                // 점령지 충성의 유지
+bool g_loyalty_due;                 // 켠 직후 — 기다리지 않고 한 번
+unsigned long long g_loyalty_at;
 long long g_reserve_floor;
 unsigned long long g_reserve_at;
 bool g_reserve_told;
@@ -923,6 +926,20 @@ void floor_tick(unsigned long long now_ms)
     }
 }
 
+// 점령지 충성의 유지. g_lock 을 쥔 채로 부른다(game_loyalty 는 게임의 함수를 부르지 않는다 — 쓰기만 한다).
+void loyalty_tick(unsigned long long now_ms)
+{
+    if (!g_loyalty_keep || runner_calling() || runner_faulted() || !game_writes())
+        return;
+    if (!g_loyalty_due && now_ms - g_loyalty_at < LOYALTY_EVERY_MS)
+        return;
+    g_loyalty_due = false;
+    g_loyalty_at = now_ms;
+    int hexes = 0, target = 0, number = 0;
+    if (game_loyalty(&hexes, &target, &number) == Wrote::Done && hexes > 0)
+        log_line("유지: 점령지 충성 %d칸 → %s", hexes, region_label(number).c_str());
+}
+
 // 예비 인원의 최소 유지. g_lock 을 쥔 채로 부른다.
 void reserve_tick(unsigned long long now_ms)
 {
@@ -1101,6 +1118,13 @@ int social_count(const Social &s)
     return count;
 }
 
+void keeper_set_loyalty_keep(bool on)
+{
+    std::lock_guard<std::mutex> lock(g_lock);
+    g_loyalty_keep = on;
+    g_loyalty_due = on;
+}
+
 void keeper_set_floor_keep(Floor which, bool on, int percent)
 {
     const int i = static_cast<int>(which);
@@ -1111,6 +1135,8 @@ void keeper_set_floor_keep(Floor which, bool on, int percent)
     g_floor_pct[i] = std::min(FLOOR_PERCENT_MAX, std::max(0, percent));
     g_floor_told[i] = false;
     g_floor_at = 0;
+    g_loyalty_keep = g_loyalty_due = false;
+    g_loyalty_at = 0;
 }
 
 void keeper_set_reserve_keep(bool on, long long value)
@@ -1200,6 +1226,7 @@ void keeper_tick(unsigned long long now_ms)
         social_tick(now_ms);
         reserve_tick(now_ms);
         floor_tick(now_ms);
+        loyalty_tick(now_ms);
     }
     if (write && job.act) {
         run_act(job.what);

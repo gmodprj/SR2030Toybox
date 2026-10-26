@@ -120,7 +120,7 @@ KEEP_DEFAULTS = "keep.treasury=0\nkeep.treasury.value=0\n" + "".join(f"keep.stoc
 MULT_DEFAULTS = "mult.on=0\nmult.tax=100\nmult.defense=100\nmult.social=100\nmult.research=100\nmult.unitbuild=100\nmult.facbuild=100\n" + "".join(
     f"mult.out.{slot}=100\nmult.use.{slot}=100\nmult.raw.{slot}=100\n" for slot in range(11))
 SOCIAL_DEFAULTS = "social.on=0\n" + "".join(f"social.up.{i}=100\nsocial.down.{i}=100\nsocial.keep.{i}=0\nsocial.keep.{i}.value=0\n" for i in range(8))
-DEFAULTS = "hotkey_vk=84\nhotkey_mods=3\nmoney.amount=10000\n" + KEEP_DEFAULTS + MULT_DEFAULTS + SOCIAL_DEFAULTS + "keep.reserve=0\nkeep.reserve.value=0\nreserve.add=1000000\n" + "keep.civapproval=0\nkeep.civapproval.value=0\nkeep.milapproval=0\nkeep.milapproval.value=0\nkeep.opinion=0\nkeep.opinion.value=0\n" + "technology=120\ndarran=7\n"
+DEFAULTS = "hotkey_vk=84\nhotkey_mods=3\nmoney.amount=10000\n" + KEEP_DEFAULTS + MULT_DEFAULTS + SOCIAL_DEFAULTS + "keep.reserve=0\nkeep.reserve.value=0\nreserve.add=1000000\n" + "keep.loyalty=0\nkeep.civapproval=0\nkeep.civapproval.value=0\nkeep.milapproval=0\nkeep.milapproval.value=0\nkeep.opinion=0\nkeep.opinion.value=0\n" + "technology=120\ndarran=7\n"
 
 
 def kept(**lines: int) -> str:

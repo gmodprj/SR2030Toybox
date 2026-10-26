@@ -197,5 +197,9 @@ void keeper_set_reserve_keep(bool on, long long value);
 // 그 값으로 쓴다(game_write_floor_value). 저장되는 설정이다.
 const int FLOOR_PERCENT_MAX = 100;
 void keeper_set_floor_keep(Floor which, bool on, int percent);
+// 점령지 충성의 유지(같은 설계서). 켜져 있으면 LOYALTY_EVERY_MS 마다(켠 직후에는 바로) game_loyalty 를 부른다 — 새로 얻은 땅도 따라온다.
+// 칸 레코드가 크므로(2030 - 세계 22 MB) 0.5초마다 훑지 않는다. 저장되는 설정이다.
+const unsigned long long LOYALTY_EVERY_MS = 5000;
+void keeper_set_loyalty_keep(bool on);
 
 void keeper_reset_for_test();

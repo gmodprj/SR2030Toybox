@@ -226,6 +226,9 @@ Settings parse_settings(const std::string &ini)
                 s.keep_floor_value[i] = static_cast<int>(n);
             else if (!value_line && (n == 0 || n == 1))
                 s.keep_floor[i] = n == 1;
+        } else if (key == "keep.loyalty") {
+            if (n == 0 || n == 1)
+                s.keep_loyalty = n == 1;
         } else if (key == "reserve.add") {
             if (n >= 1 && n <= RESERVE_LIMIT)
                 s.reserve_amount = n;
@@ -277,6 +280,7 @@ std::string format_settings(const Settings &s)
     }
     out += "keep.reserve=" + std::to_string(s.keep_reserve ? 1 : 0) + "\nkeep.reserve.value=" + std::to_string(s.keep_reserve_value)
         + "\nreserve.add=" + std::to_string(s.reserve_amount) + "\n";
+    out += "keep.loyalty=" + std::to_string(s.keep_loyalty ? 1 : 0) + "\n";
     for (int i = 0; i < 3; i++)
         out += std::string("keep.") + FLOOR_KEYS[i] + "=" + std::to_string(s.keep_floor[i] ? 1 : 0) + "\nkeep." + FLOOR_KEYS[i] + ".value="
             + std::to_string(s.keep_floor_value[i]) + "\n";

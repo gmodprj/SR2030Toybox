@@ -633,6 +633,8 @@ const char *const FLOOR_LABELS[FLOOR_COUNT] = {"국민 지지율", "군부 지�
 const char *const FLOOR_IDS[FLOOR_COUNT] = {"civ", "mil", "opinion"};
 const char *const FLOOR_STATUS[FLOOR_COUNT] = {"국민 지지", "군부 지지", "여론"};
 bool g_floor_sent_on[FLOOR_COUNT] = {};
+bool g_loyalty_sent_on = false;
+bool g_loyalty_sent = false;   // 한 번이라도 넘겼는가
 int g_floor_sent_value[FLOOR_COUNT] = {-1, -1, -1};
 
 // 창의 지지율 · 여론 최소 유지를 keeper 에 넘긴다(save 면 설정 파일에도). 달라진 칸만.
@@ -649,6 +651,13 @@ void send_floors(bool save)
         g_floor_sent_value[i] = g_settings.keep_floor_value[i];
         changed = true;
     }
+    if (!g_loyalty_sent || g_settings.keep_loyalty != g_loyalty_sent_on) {
+        if (g_loyalty_sent || g_settings.keep_loyalty)
+            log_line("유지 %s: 점령지 충성", g_settings.keep_loyalty ? "켬" : "끔");
+        keeper_set_loyalty_keep(g_settings.keep_loyalty);
+        g_loyalty_sent_on = g_settings.keep_loyalty;
+        g_loyalty_sent = changed = true;
+    }
     if (changed && save)
         save_settings(g_settings);
 }
@@ -656,7 +665,7 @@ void send_floors(bool save)
 // 상태 줄의 뒤에 붙는 글: 켜진 유지가 있으면 " · 유지 중: 국민 지지, 여론".
 std::string floor_text()
 {
-    std::string names;
+    std::string names = g_loyalty_sent_on ? "점령지 충성" : "";
     for (int i = 0; i < FLOOR_COUNT; i++)
         if (g_floor_sent_on[i])
             names += (names.empty() ? "" : ", ") + std::string(FLOOR_STATUS[i]);
@@ -697,6 +706,10 @@ void loyalty_rows(const GameState &game)
         }
         note("loyalty:run", text);
         ImGui::EndDisabled();
+        ImGui::SameLine();
+        if (ImGui::Checkbox("계속 유지##loyalty", &g_settings.keep_loyalty))   // 설정이다 — 게임 밖에서도 고칠 수 있다
+            send_floors(true);
+        note("loyalty:keep", g_settings.keep_loyalty ? "1" : "0");
     }
     // 지지율 · 여론의 최소 유지는 설정이다 — 게임 밖에서도 고칠 수 있다
     for (int i = 0; i < FLOOR_COUNT; i++) {
