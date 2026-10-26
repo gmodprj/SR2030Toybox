@@ -451,10 +451,10 @@ EXPORT void srtoybox_test_acts(const ActLayout *layout, void *colonize, void *fi
     game_set_acts_for_test(layout, colonize, fight, become, elect, news, treaty, annex, spawn, deploy);
 }
 
-// 점령지 충성(game_loyalty): Wrote 의 정수. 바꾼 칸의 수와 쓴 충성 대상의 인덱스.
-EXPORT int srtoybox_loyalty(int *hexes, int *target)
+// 점령지 충성(game_loyalty): Wrote 의 정수. 바꾼 칸의 수, 쓴 충성 대상의 인덱스와 지역 번호.
+EXPORT int srtoybox_loyalty(int *hexes, int *target, int *number)
 {
-    return static_cast<int>(game_loyalty(hexes, target));
+    return static_cast<int>(game_loyalty(hexes, target, number));
 }
 
 EXPORT int srtoybox_loyalty_off(char *out, int size)

@@ -2378,10 +2378,11 @@ std::string game_loyalty_off()
     return off_text(g_map != 0, g_act_why[13]);
 }
 
-Wrote game_loyalty(int *hexes, int *target)
+Wrote game_loyalty(int *hexes, int *target, int *number)
 {
     *hexes = 0;
     *target = 0;
+    *number = 0;
     if (!game_loyalty_off().empty())
         return Wrote::Off;
     const uint8_t *base = nullptr;
@@ -2404,14 +2405,14 @@ Wrote game_loyalty(int *hexes, int *target)
     uint64_t map = 0;
     uint8_t head[MAP_COUNT + 4] = {};
     if (!peek_at(base, where, &map) || map == 0 || !peek(reinterpret_cast<const void *>(map), head, sizeof(head)))
-        return Wrote::BadValue;
+        return Wrote::Unreadable;
     const uint64_t cells = field<uint64_t>(head, MAP_HEXES);
     const int32_t width = field<int32_t>(head, MAP_WIDTH), count = field<int32_t>(head, MAP_COUNT);
     if (cells == 0 || width < 1 || width > 0xFFFF || count < width || count % width != 0 || count / width > 0xFFFF)
-        return Wrote::BadValue;
+        return Wrote::Unreadable;
     std::vector<uint8_t> raw(static_cast<size_t>(count) * HEX_SIZE);
     if (!peek(reinterpret_cast<const void *>(cells), raw.data(), raw.size()))
-        return Wrote::BadValue;
+        return Wrote::Unreadable;
     std::vector<int8_t> side(MAX_REGIONS, -1);           // 충성 대상마다: -1 아직 모른다 · 0 남 · 1 내 편
     const auto loyal_to_me = [&](int l) {
         if (l == me)
@@ -2429,7 +2430,7 @@ Wrote game_loyalty(int *hexes, int *target)
         const uint8_t *record = raw.data() + static_cast<size_t>(i) * HEX_SIZE;
         const uint16_t owner = field<uint16_t>(record, 0), loyal = field<uint16_t>(record, 2);
         if (owner >= MAX_REGIONS || loyal >= MAX_REGIONS)
-            return Wrote::BadValue;                       // 칸 레코드의 꼴이 다르다 — 한 칸도 쓰지 않는다
+            return Wrote::Unreadable;                     // 칸 레코드의 꼴이 다르다 — 한 칸도 쓰지 않는다
         if (owner != me || loyal == 0)
             continue;
         if (loyal_to_me(loyal))
@@ -2444,6 +2445,10 @@ Wrote game_loyalty(int *hexes, int *target)
     if (mine_count[static_cast<size_t>(best)] == 0)
         return Wrote::BadValue;                           // 내 편 칸이 없다 — 판정이 틀렸을 수 있으니 본토를 다시 쓰지 않는다
     *target = best;
+    uint64_t slot = 0;
+    uint16_t named = 0;
+    if (peek_at(base, at.region_table + 8ull * static_cast<uint64_t>(best), &slot) && slot != 0 && peek_in(slot, 8, &named))
+        *number = named;
     if (list.empty())
         return Wrote::Done;
     if (hook != nullptr)

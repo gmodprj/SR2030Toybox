@@ -13,7 +13,8 @@ from toybox_fake_game import FakeGame
 MAP_GLOBAL = 0x3F00                      # 가짜 게임 안의 "지도 객체의 포인터가 든 전역"
 PARENT = 0x20C                           # 지역 객체 안의 위 나라 칸(가짜)
 GERMANY, WEST, EAST, DENMARK, SWEDEN = 176, 171, 172, 157, 160
-DONE, NOT_IN_GAME, BAD_VALUE, OFF = 0, 1, 3, 5   # game.h 의 Wrote
+DONE, NOT_IN_GAME, BAD_VALUE, OFF, UNREADABLE = 0, 1, 3, 5, 7   # game.h 의 Wrote
+LOYALTY = -9                             # keeper.h 의 Request.slot
 WIDTH = 8
 
 
@@ -26,7 +27,9 @@ def lib(cfg):
     for name in ("srtoybox_test_values", "srtoybox_test_more", "srtoybox_test_mult"):
         getattr(lib, name).argtypes = [ctypes.c_void_p]
     lib.srtoybox_test_acts.argtypes = [ctypes.c_void_p] * 10
-    lib.srtoybox_loyalty.argtypes = [ctypes.POINTER(ctypes.c_int), ctypes.POINTER(ctypes.c_int)]
+    lib.srtoybox_loyalty.argtypes = [ctypes.POINTER(ctypes.c_int)] * 3
+    lib.srtoybox_keeper_request.argtypes = [ctypes.c_int, ctypes.c_int, ctypes.c_double]
+    lib.srtoybox_keeper_text.argtypes = [ctypes.c_char_p, ctypes.c_int]
     lib.srtoybox_loyalty_off.argtypes = [ctypes.c_char_p, ctypes.c_int]
     lib.srtoybox_test_loyalty_hook.argtypes = [ctypes.c_void_p]
     return lib
@@ -73,6 +76,7 @@ def game(lib):
     lib.srtoybox_test_mult(ctypes.byref(toybox.MultLayout(parent=PARENT)))
     lib.srtoybox_test_acts(ctypes.byref(toybox.ActLayout(map=MAP_GLOBAL)), *([None] * 9))
     lib.srtoybox_test_loyalty_hook(None)
+    lib.srtoybox_keeper_reset()
     fake.map = Map(fake, mainland())
     yield fake
     lib.srtoybox_test_loyalty_hook(None)
@@ -80,9 +84,17 @@ def game(lib):
 
 
 def loyalty(lib) -> tuple[int, int, int]:
-    hexes, target = ctypes.c_int(-1), ctypes.c_int(-1)
-    wrote = lib.srtoybox_loyalty(ctypes.byref(hexes), ctypes.byref(target))
+    hexes, target, number = ctypes.c_int(-1), ctypes.c_int(-1), ctypes.c_int(-1)
+    wrote = lib.srtoybox_loyalty(ctypes.byref(hexes), ctypes.byref(target), ctypes.byref(number))
+    assert number.value == {0: 0, WEST: 1401}[target.value]    # 쓴 충성 대상의 지역 번호
     return wrote, hexes.value, target.value
+
+
+def told(lib) -> tuple[str, str]:
+    buf = ctypes.create_string_buffer(4096)
+    lib.srtoybox_keeper_text(buf, len(buf))
+    last, notice = buf.value.decode("utf-8").split("	")
+    return last, notice
 
 
 def test_conquered_hexes_become_loyal_to_the_players_side(lib, game):
@@ -119,7 +131,7 @@ def test_nothing_is_written_when_the_map_makes_no_sense(lib, game, broken):
     if broken == "loyal_index":
         hexes[15] = (0, 1024)                                  # 지역 표 밖의 충성 대상
     game.map = Map(game, hexes, width=WIDTH if broken != "width" else 5)   # 칸 수가 너비의 배수가 아니다
-    assert loyalty(lib)[0] == BAD_VALUE
+    assert loyalty(lib)[0] == UNREADABLE
     assert [game.map.hex(i) for i in (8, 9, 10)] == [(GERMANY, DENMARK)] * 3
 
 
@@ -153,3 +165,26 @@ def test_nothing_is_written_in_the_menu_or_in_multiplayer(lib, game, where):
     else:
         game.poke(0x10, "<B", 1)
     assert loyalty(lib)[0] == NOT_IN_GAME and game.map.hex(8) == (GERMANY, DENMARK)
+
+
+# ---- 단추(keeper 의 요청) ----
+
+def test_the_loyalty_button_flips_and_tells(lib, game):
+    assert lib.srtoybox_keeper_request(LOYALTY, 0, 0) == 1
+    lib.srtoybox_keeper_tick()
+    assert game.map.hex(8) == (GERMANY, WEST) and told(lib) == ("점령지 충성: 3칸 → 서독", "")
+    assert lib.srtoybox_keeper_request(LOYALTY, 0, 0) == 1
+    lib.srtoybox_keeper_tick()
+    assert told(lib)[1] == "점령지 충성: 바꿀 칸이 없습니다"
+
+
+def test_the_loyalty_button_says_when_no_hex_is_loyal(lib, game):
+    game.map = Map(game, [(GERMANY, DENMARK)] * WIDTH)
+    assert lib.srtoybox_keeper_request(LOYALTY, 0, 0) == 1
+    lib.srtoybox_keeper_tick()
+    assert told(lib)[1] == "점령지 충성: 내 편인 칸이 없어 쓰지 않았습니다" and game.map.hex(0) == (GERMANY, DENMARK)
+
+
+def test_the_loyalty_button_is_refused_when_it_cannot_write(lib, game):
+    lib.srtoybox_test_mult(ctypes.byref(toybox.MultLayout()))
+    assert lib.srtoybox_keeper_request(LOYALTY, 0, 0) == 0

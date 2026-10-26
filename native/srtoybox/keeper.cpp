@@ -100,7 +100,8 @@ std::string request_off(const Request &r)
 {
     return r.slot == TECH ? game_more_off(MORE_TECH) : r.slot == OPINION ? game_more_off(MORE_OPINION)
         : r.slot == RELATION ? game_more_off(MORE_RELATIONS) : r.slot == PEOPLE ? game_more_off(MORE_PEOPLE)
-        : r.slot == APPROVAL ? game_more_off(MORE_APPROVAL) : r.slot == RESERVE ? game_mult_off(MULT_PART_RESERVE) : game_values_off();
+        : r.slot == APPROVAL ? game_more_off(MORE_APPROVAL) : r.slot == RESERVE ? game_mult_off(MULT_PART_RESERVE)
+        : r.slot == LOYALTY ? game_loyalty_off() : game_values_off();
 }
 
 // 수를 있는 그대로 적는다: 130, 130.5
@@ -157,6 +158,18 @@ bool apply_more(const Request &r)
             g_notice = "예비 인원의 칸이 수가 아니어서 쓰지 않았습니다.";
             return true;
         }
+    } else if (r.slot == LOYALTY) {
+        int hexes = 0, target = 0, number = 0;
+        wrote = game_loyalty(&hexes, &target, &number);
+        if (wrote == Wrote::Done && hexes == 0) {
+            g_notice = "점령지 충성: 바꿀 칸이 없습니다";
+            return true;
+        }
+        if (wrote == Wrote::BadValue || wrote == Wrote::Unreadable) {
+            g_notice = wrote == Wrote::BadValue ? "점령지 충성: 내 편인 칸이 없어 쓰지 않았습니다" : "점령지 충성: 지도를 읽을 수 없어 쓰지 않았습니다";
+            return true;
+        }
+        what = "점령지 충성: " + std::to_string(hexes) + "칸 → " + region_label(number);
     } else if (r.slot == APPROVAL) {
         what = "지지율 100%";
         wrote = game_write_approval();

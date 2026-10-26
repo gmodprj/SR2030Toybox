@@ -18,6 +18,7 @@ const int OPINION = -4;                        // Request.slot: 세계 시장 �
 const int PEOPLE = -6;                         // Request.slot: 인구 칸과 그 풀에 amount(명)를 더한다(change 는 보지 않는다)
 const int APPROVAL = -7;                       // Request.slot: 국내 지지율을 100% 로(change · amount 는 보지 않는다)
 const int RESERVE = -8;                        // Request.slot: 예비 인원에 amount(명)를 더한다(끝 RESERVE_MAX. change 는 보지 않는다)
+const int LOYALTY = -9;                        // Request.slot: 점령지 충성 — 내 편이 아닌 내 칸의 충성 대상을 내 편으로(change · amount 는 보지 않는다)
 const int RELATION = -5;                       // Request.slot: region 의 나라와의 관계를 amount 로, 전쟁 명분을 0 으로(change 는 보지 않는다)
 
 struct Request {

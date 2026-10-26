@@ -627,6 +627,45 @@ void reserve_rows(const GameState &game)
     ImGui::TextDisabled("명");
 }
 
+// ---- 충성 · 지지(docs/superpowers/specs/2026-10-26-toybox-loyalty-design.md) ----
+
+const char *const LOYALTY_ASK = "loyalty:run";      // g_confirm: "점령지 충성"이 둘째 누름을 기다린다
+const char *const LOYALTY_HELP = "전투 · 병합으로 얻은 내 땅 가운데 아직 다른 나라에 충성하는 칸의 충성 대상을 내 나라(본토 칸에 가장 많은 충성 대상)로 바꾼다. "
+                                 "남의 나라 땅과 이미 내 편인 땅은 그대로다. 되돌릴 수 없다";
+
+// 인구·여론 탭의 아래: 충성 · 지지 묶음.
+void loyalty_rows(const GameState &game)
+{
+    ImGui::Spacing();
+    ImGui::Separator();
+    ImGui::TextUnformatted("충성 · 지지");
+    ImGui::SameLine();
+    ImGui::TextDisabled("(?)");
+    if (ImGui::IsItemHovered())
+        wrapped_tooltip(LOYALTY_HELP);
+    const std::string off = game.known ? game_loyalty_off() : std::string("게임 상태를 읽을 수 있을 때만 씁니다.");
+    if (!off.empty()) {
+        const std::string line = "점령지 충성을 쓸 수 없습니다: " + off;
+        ImGui::TextWrapped("%s", line.c_str());
+        note("loyalty:off", line);
+        return;
+    }
+    const bool playing = game.known && game.in_game && !game.multiplayer;
+    ImGui::BeginDisabled(!playing);
+    const bool asking = g_confirm == LOYALTY_ASK;
+    const std::string text = asking ? std::string("점령지 충성 — 한 번 더 누르면 실행합니다") : std::string("점령지 충성");
+    if (ImGui::Button((text + "###loyalty").c_str())) {
+        if (asking) {
+            g_confirm.clear();
+            g_notice = keeper_enqueue({LOYALTY, Change::Add, 0}) ? "" : "대기 중인 요청이 많아 받지 못했습니다.";
+        } else {
+            g_confirm = LOYALTY_ASK;
+        }
+    }
+    note("loyalty:run", text);
+    ImGui::EndDisabled();
+}
+
 // ---- 사회: 품질 등급의 배율과 최소 유지(docs/superpowers/specs/2026-10-21-toybox-social-grades-design.md) ----
 
 static_assert(SETTINGS_SOCIAL_RATE_MAX == SOCIAL_RATE_MAX && SETTINGS_SOCIAL_KEEP_MAX == SOCIAL_KEEP_MAX,
@@ -1691,8 +1730,10 @@ void ui_draw()
                                     ImGui::SameLine();   // 연구 탭의 단추들은 한 줄에 — 아래는 목록의 자리다
                             }
                         }
-                        if (strcmp(tab, PEOPLE_TAB) == 0)
+                        if (strcmp(tab, PEOPLE_TAB) == 0) {
                             reserve_rows(game);
+                            loyalty_rows(game);
+                        }
                         ImGui::EndDisabled();
                         if (research)
                             item_list(g_research_list, false, game, blocked);
